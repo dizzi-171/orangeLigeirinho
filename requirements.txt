@@ -1,0 +1,5 @@
+ultralytics
+flask
+onnxruntime
+torch
+pyserial

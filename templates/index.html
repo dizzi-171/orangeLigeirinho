@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Streaming YOLOv8 Webcam</title>
+    <style>
+        body {
+            background-color: #222;
+            color: #eee;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+        }
+
+        table {
+            width: 100%;
+            margin: 20px auto;
+            border-collapse: collapse;
+        }
+
+        td {
+            padding: 10px;
+            vertical-align: top;
+        }
+
+        img {
+            width: 640px;  /* Largura do vídeo */
+            border: 5px solid #4CAF50;
+        }
+
+        .info-container {
+            background-color: #333;
+            color: #eee;
+            border-radius: 10px;
+            padding: 15px;
+            width: 300px;  /* Limitar a largura da área de informações */
+        }
+
+        button {
+            background-color: #f44336;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 20px;
+            border-radius: 5px;
+        }
+
+        h1, h2 {
+            font-size: 24px;
+            margin-top: 20px;
+        }
+
+        p {
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Streaming Webcam YOLOv8 - Detecção de Vítimas</h1>
+
+    <!-- Usando uma tabela para organizar o layout -->
+    <table>
+        <tr>
+            <!-- Coluna para o stream de vídeo -->
+            <td>
+                <img src="{{ url_for('stream') }}" alt="Stream de Vídeo">
+                <br>
+                <button onclick="stopStream()">Parar Stream</button>
+            </td>
+
+            <!-- Coluna para as informações -->
+            <td>
+                <div class="info-container">
+                    <h2>Informações do Frame</h2>
+                    <div id="temp_info">Nada encontrado...</div>
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <p id="msg"></p>
+
+    <script>
+        // Função para atualizar as informações
+        function atualizarTemp() {
+            fetch('/temp_data')
+                .then(response => response.json())
+                .then(data => {
+                    if (data && data.classe) {
+                        document.getElementById('temp_info').innerHTML = `
+                            Classe: ${data.classe}<br>
+                            Diâmetro: ${data.diametro}<br>
+                            Centro: ${data.centro ? `(${data.centro[0]}, ${data.centro[1]})` : 'Não detectado'}<br>
+                            Confiança: ${data.conf}`;
+                    } 
+                    else {
+                        document.getElementById('temp_info').innerHTML = 'Aguardando dados da IA...';
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('temp_info').innerHTML = 'Erro ao carregar dados!';
+                });
+        }
+
+        // Atualiza a cada 2 segundos
+        setInterval(atualizarTemp, 320);
+
+        // Função de parar o stream
+        function stopStream() {
+            fetch('/stop', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('msg').textContent = data.message;
+                })
+                .catch(err => {
+                    document.getElementById('msg').textContent = 'Erro ao parar.';
+                });
+        }
+        
+    </script>
+
+</body>
+</html>

@@ -243,7 +243,7 @@ def processar_frame(cap, model, sistema):
         if cv2.waitKey(1) & 0xFF == ord("q"):
             raise erro
 
-    # Define a imagem redimensionada. vvvvvvvvvvvvvvvvvvvvvvv vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv vvvcvcvcv
+    # Define a imagem redimensionada. 
     resized_frame = cv2.resize(marked_frame, (160, 120))
     cv2.imwrite(os.path.join(output_dir, img_name), resized_frame)
     # Define a última como a última imagem não redimensionada.
@@ -291,6 +291,7 @@ if __name__ == '__main__':
             
             # if mensagemFinal: enviarMensagem(mensagemFinal)
             if mensagemFinal: print("MENSAGEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEM",mensagemFinal)
+            time.sleep(0.5)
 
     # Se não conseguir, define que houve um erro durante a execução.
     except Exception as e:

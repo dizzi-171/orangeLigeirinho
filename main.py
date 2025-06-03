@@ -196,7 +196,7 @@ def processar_frame(cap, model, sistema):
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
     dx = 0
-    # Utiliza um laço for, calcular o centro da imagem em que a vítima será encontrada.
+    # Utiliza um laço for, calcula/r o centro da imagem em que a vítima será encontrada.
     for result in results:
         for box in result.boxes:
             cls = int(box.cls.item())

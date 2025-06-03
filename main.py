@@ -151,14 +151,16 @@ def quantidadeDeGraus(x):
 def distanciaVitima(x):
     # calculo feito para vitimas de 5cm usando funcao exponecial
     distancia=(int(10*(873*x/5-0.941)))
-    print("###########################")
-    print("DISTANCIA NOVA",distancia)
-    print("###########################")
+    print("DISTANCIA",distancia)
 
     return distancia
 
 # Função para iniciar servidor Flask em thread separada
 def start_streaming_server():
+    import logging
+    log = logging.getLogger('werkzeug')
+    log.setLevel(logging.ERROR)
+
     app.run(host='0.0.0.0', port=8080, threaded=True)
 
 
@@ -170,7 +172,7 @@ def processar_frame(cap, model, sistema):
     start_time = time.time()
 
     # Se o sistema for o windows, limita o processamento a 4fps, se for linux, será o orange que está processando a imagem, e ele já é limitado.
-    # if sistema == "Windows": time.sleep(0.225)
+    if sistema == "Windows": time.sleep(0.333)
 
     # temp = {"classe": None, "diametro": 0, "centro": None}
     temp["centro"] = None
@@ -217,7 +219,7 @@ def processar_frame(cap, model, sistema):
     
     # Se a imagem for encontrada, mostra a circunferência em volta da vítima, com base no centro e no raio.
     if temp["centro"]:
-        print("\nTemp do frame:", temp, "\n")
+        print("\nTemp do frame:", temp)
         finalResult = temp.copy()
         centro = tuple(temp["centro"])
         raio = temp["diametro"] // 2
@@ -250,8 +252,7 @@ def processar_frame(cap, model, sistema):
     latest_frame = marked_frame.copy()
 
     # Printa que a imagem foi salva, e mostra o nome da imagem já formatado na forma correta.
-    print(f"Frame salvo: {img_name}")
-    print("-" * 30)
+    print(f"Frame salvo: {img_name}\n")
 
     # Adiciona mais um ao frame counta para continuar printando e adicionando imagens com nomes sequenciais.
     frame_count += 1
@@ -290,7 +291,8 @@ if __name__ == '__main__':
                 continue
             
             # if mensagemFinal: enviarMensagem(mensagemFinal)
-            if mensagemFinal: print("MENSAGEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEM",mensagemFinal)
+            if mensagemFinal: print("MENSAGEM",mensagemFinal)
+            print("\n","-" * 30)
 
     # Se não conseguir, define que houve um erro durante a execução.
     except Exception as e:

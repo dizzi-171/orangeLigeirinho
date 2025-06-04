@@ -20,19 +20,21 @@ Caso queira fazer as instalações por conta própria, as dependências estão l
       - pinctrl-names = 'default';
       - pinctrl-0 = <0x55> (no lugar de 0x55, coloque o valor do phandle da uart que irá utilizar);
 
-- Agora, se quiser subir código pelo VSCode somente apertando F5, devemos permitir que nosso computador se conecte sem senha no orange. (opcional).
+- Agora, para subir código pelo VSCode somente apertando F5. (opcional).
+  - Deveremos primeiro permitir que nosso computador se conecte no orange via ssh sem senha.
+    - Gera uma chave publica no seu computador, se já fez isso antes, nao é necessário refazer (ssh-keygen -t rsa -b 4096).
+    - ssh-copy-id USUARIO@IP (substituia o usuario e o IP pelo correto) (no linux).
+    - No windows não tem como ser feito com comando, abra o arquivo id_rsa.pub, na pasta .ssh dentro da pasta seu usuario, copie a linha.
+    - Logue na placa por ssh e rode os comandos.
+      - mkdir -p ~/.ssh.
+      - nano ~/.ssh/authorized_keys.
+      - Agora, copie o valor do arquivo id_rsa.pub e cole dentro desse arquivo, salve e saia.
+      - Agora, qualquer login por ssh não pedirá mais senha.
+  - Por fim, na pasta do projeto no VSCode, crie um arquivo envia.bat.
+    - O código do que colocar no envia.bat está no arquivo envia.bat na pasta do projeto, lembre-se de substituir o que for necessário.
+    - Você pode alterar como quiser, coloque o que achar necessário a ser feito quando apertar F5, como mais ou menos scp's, ou rodar o código nesse momento.
 
-  - Gera uma chave publica no seu computador, se já fez isso antes, nao é necessário refazer (ssh-keygen -t rsa -b 4096).
-  - ssh-copy-id USUARIO@IP (substituia o usuario e o IP pelo correto) (no linux).
-  - No windows não tem como ser feito com comando, abra o arquivo id_rsa.pub, na pasta .ssh dentro da pasta seu usuario, copie a linha.
-  - Logue na placa por ssh e rode os comandos.
-    - mkdir -p ~/.ssh.
-    - nano ~/.ssh/authorized_keys.
-    - Agora, copie o valor do arquivo id_rsa.pub e cole dentro desse arquivo, salve e saia.
-    - Agora, qualquer login por ssh não pedirá mais senha.
-
-- De permissão para o shutdown e outros comandos necessários sejam executados sem precisar de senha. (opcional).
-
+- De permissão para que o shutdown e outros comandos necessários sejam executados sem precisar de senha. (opcional).
   - Digite sudo visudo
   - Dentro do arquivo, no final dele, coloque as seguintes linhas:
     - orangepi ALL=(ALL) NOPASSWD: /usr/bin/psd-overlay-helper.
@@ -50,7 +52,6 @@ Caso queira fazer as instalações por conta própria, as dependências estão l
   - Agora reinicie o orange e rode (ps aux), dentro da lsita enorme que aparece, o arquivo start.sh deve estar listado.
 
 - Inserir no script de login do usuario a opção já iniciar o terminal com o ambiente python do usuario.
-
   - abra o arquivo .nashrc (nano ~/.bashrc)
   - no final do arquivo adicione (source ~/yolov8-env/bin/activate) (altere o caminho do venv se necessário)
   - Agora sempre que logar com o usuario no ssh, o ambiente python já será selecionado. (Um comando a menos para esquecer :D )

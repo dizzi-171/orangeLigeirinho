@@ -5,7 +5,7 @@ Tutorial de como instalar armbian e preparar o Orange Pi Zero 2w para projeto de
 
 Versão do armbian utilizada é baseada em debian 12 (https://www.armbian.com/orange-pi-zero-2w/). Atualmente o projeto utiliza a versão Armbian 24.2.6 Bookworm.
 
-Agora devemos instalar no cartão SD, dar boot, configurar inicialmente a instação.
+Agora devemos instalar no cartão SD, dar boot e configurar inicialmente a instalação.
 
 Atualize o APT (`sudo apt update`)  
 Atualize o pip (`sudo pip install --update`)

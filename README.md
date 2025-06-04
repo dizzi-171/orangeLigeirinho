@@ -5,7 +5,10 @@ Tutorial de como instalar armbian e preparar o Orange Pi Zero 2w para projeto de
 
 Versão do armbian utilizada é baseada em debian 12 (https://www.armbian.com/orange-pi-zero-2w/). Atualmente o projeto utiliza a versão Armbian 24.2.6 Bookworm.
 
-Agora devemos instalar no cartão SD, dar boot, configurar inicialmente a instação e depois ativar a porta serial utilizada par acomunicação com o Brick EV3 usando armbian-config.
+Agora devemos instalar no cartão SD, dar boot, configurar inicialmente a instação.
+
+Devemos executar o script setup_yolo.sh para que as depencências sejam instaladas e o venv (ambiente virtual python) seja criado automaticamente.
+Caso queira fazer as instalações por conta própria, as dependências estão lsitadas no arquivo requirements.txt.
 
 - Para utilizar comunicação Serial, você deverá alterar algumas configuraçõoes das portas do Orange.
   - rodar o comando armbian-config (sudo armbian-config), entrar em System > dtc.
@@ -50,7 +53,5 @@ Agora devemos instalar no cartão SD, dar boot, configurar inicialmente a insta�
   - abra o arquivo .nashrc (nano ~/.bashrc)
   - no final do arquivo adicione (source ~/yolov8-env/bin/activate) (altere o caminho do venv se necessário
   - Agora sempre que logar com o usuario no ssh, o ambiente python já será selecionado. (Um comando a menos para esquecer :D )
-
-
 
 

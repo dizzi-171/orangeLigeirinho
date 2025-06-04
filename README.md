@@ -64,9 +64,3 @@ Caso queira fazer as instalações por conta própria, as dependências estão l
   - Agora reinicie o orange e rode `ps aux`, dentro da lista enorme que aparece, o arquivo `start.sh` deve estar listado.
   - Você também pode visualizar os prints em tempo quase real (varia com a qualidade da rede), através do comando:  
     `sudo journalctl -u <nome do serviço> -f` 
-
-- Inserir no script de login do usuário a opção já iniciar o terminal com o ambiente python do usuário:
-  - Abra o arquivo `.bashrc` (`nano ~/.bashrc`)
-  - No final do arquivo adicione:  
-    `source ~/yolov8-env/bin/activate` *(altere o caminho do venv se necessário)*
-  - Agora sempre que logar com o usuário no ssh, o ambiente python já será selecionado. *(Um comando a menos para esquecer :D)*

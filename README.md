@@ -18,11 +18,14 @@ Caso queira fazer as instalações por conta própria, as dependências estão l
 - Para utilizar comunicação Serial, você deverá alterar algumas configuraçõoes nas portas do Orange.
   - Primeiro confira quais portas são listadas no comando (`dmesg | grep tty`) e escolha a que irá usar.
   - Rode o comando `armbian-config` (`sudo armbian-config`), entrar em **System > dtc**.
-  - Nesse arquivo encontre a uart ph que será utilizada, no nosso caso a uart5, copie o valor do `phandle` dessa porta, mais à frente o utilizaremos.
+  - Nesse arquivo encontre a uart pin que será utilizada, no nosso caso a uart5, copie o valor do `phandle` dessa porta, mais à frente o utilizaremos.
 
 ![image](https://github.com/user-attachments/assets/48b43938-7ec4-4295-81db-5badfeefa6bb)
 
   - Agora encontre a serial correspondente à essa uart, a ordem das seriais é 0,1,2,3..
+
+![image](https://github.com/user-attachments/assets/041c8b21-5634-42e4-a59e-b0be800af591)
+
   - Nela, faça as seguintes alterações:
     - troque `status = 'disabled'` para `status = 'okay'`;
     - adicione abaixo dessa linha, as seguintes linhas:

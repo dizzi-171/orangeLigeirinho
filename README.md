@@ -42,13 +42,14 @@ Caso queira fazer as instalações por conta própria, as dependências estão l
  
 - Para o código iniciar no momento que ligar, e quando parar de executar, ser excutado novamente para permanecer em funcionamento, iremos criar um serviço. (opcional)
   - Dentro da placa, crie um arquivo start.sh para ser executável, com o conteúdo:
-    - O código do que colocar no start.sh está no arquivo start.sh na pasta do projeto, lembre-se de subsituir o que for necessário.
+    - O código do que colocar no start.sh está no arquivo start.sh na pasta do projeto, lembre-se de subsituir o que for necessário. # COLOCAR ARQUIVO START.SH AQUI
   - Crie um serviço para iniciar o script toda vez que a placa ligar (sudo nano /etc/systemd/system/<nome que quiser>.service).
     - O código do que colocar no serviço está no arquivo exemplo.service na pasta do projeto, lembre-se de substituir o que for necessário.
   - Rode agora sudo systemctl daemon-reexec.
-  - Depois, sudo systemctl enable menuPrincipal.service.
+  - Depois, sudo systemctl enable <nome que deseja no servio>.service.
+  - Agora reinicie o orange e rode (ps aux), dentro da lsita enorme que aparece, o arquivo start.sh deve estar listado.
 
-- Inserir no script de login do usuario a opção já iniciar o terminal com o ambiente python do usuario
+- Inserir no script de login do usuario a opção já iniciar o terminal com o ambiente python do usuario.
 
   - abra o arquivo .nashrc (nano ~/.bashrc)
   - no final do arquivo adicione (source ~/yolov8-env/bin/activate) (altere o caminho do venv se necessário)

@@ -1,7 +1,7 @@
 # VISÃO COMPUTACIONAL ORANGEPIZERO2W+EV3
 # COLOCAR PRINTS DE EXEMPLO EM TUDO
 
-Tutorial de como instalar armbian e configurar visão computacioanl com IA, no Orange Pi Zero 2w para projeto de robótica competitiva (Robocup Rescue Line - Equipe Ligeirinho).
+Tutorial de como instalar armbian e preparar o Orange Pi Zero 2w para projeto de robótica competitiva (Robocup Rescue Line - Equipe Ligeirinho) com Visão Computacional.
 
 Versão do armbian utilizada é baseada em debian 12 (https://www.armbian.com/orange-pi-zero-2w/). Atualmente o projeto utiliza a versão Armbian 24.2.6 Bookworm.
 

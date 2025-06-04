@@ -22,11 +22,11 @@ Caso queira fazer as instalações por conta própria, as dependências estão l
 
 ![image](https://github.com/user-attachments/assets/48b43938-7ec4-4295-81db-5badfeefa6bb)
 
-  - Agora encontre a serial correspondente à essa uart, a ordem das seriais é 0,1,2,3..
+    - Agora encontre a serial correspondente à essa uart, a ordem das seriais é 0,1,2,3..
 
 ![image](https://github.com/user-attachments/assets/041c8b21-5634-42e4-a59e-b0be800af591)
 
-  - Nela, faça as seguintes alterações:
+    - Nela, faça as seguintes alterações:
     - troque `status = 'disabled'` para `status = 'okay'`;
     - adicione abaixo dessa linha, as seguintes linhas:
       - `pinctrl-names = 'default';`

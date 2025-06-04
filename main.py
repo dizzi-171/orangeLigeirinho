@@ -6,7 +6,7 @@ import platform
 
 # Detecta sistema operacional (Windows, Linux, etc)
 sistema = platform.system()
-if sistema != "Windows": import serial
+import serial
 
 import os
 import json
@@ -14,7 +14,7 @@ import glob
 from flask import Flask, Response, render_template, jsonify
 from threading import Thread
 
-PROCURAR_VITIMA = 0
+PROCURAR_VITIMA = (b'0')
 
 # Define o número de threads para PyTorch (CPU)
 torch.set_num_threads(4)
@@ -124,15 +124,18 @@ def conectar_serial(porta_serial,baud_rate=115200):
 def aguardarMensagem(tempo):
     print("Aguardando Mensagem")
 
-    milliseconds_inicial= int(time()*1000)
+    milliseconds_inicial= int(time.time()*1000)
     while True: 
+        # print("Lendo mensagem")
         mensagem = ser.read_all()
         time.sleep(0.001)
+        print(mensagem)
         if mensagem is not (b''): return mensagem
-
-        if tempo and (int(time()*1000)-milliseconds_inicial)>2500: 
+        # return '0'
+        if tempo and (int(time.time()*1000)-milliseconds_inicial)>2500: 
             print("Muito tempo sem resposta")
             return '0'
+        # print(int(time.time()*1000)-milliseconds_inicial)
 
 # Envia uma mensagem para o brick
 def enviarMensagem(mensagem):
@@ -257,30 +260,46 @@ def processar_frame(cap, model, sistema):
     # Adiciona mais um ao frame counta para continuar printando e adicionando imagens com nomes sequenciais.
     frame_count += 1
 
+ret, frame = cap.read()
+frame = cv2.resize(frame, (320, 240))
+# Indica os resultados que viram do processamento de imagem.
+results = model(frame, imgsz=320, conf=0.7, device=device)
+
+print("Conectando serial")
 # Se estiver em main, incia o stream.
-# if __name__ == '__main__' and conectar_serial(porta_serial = '/dev/ttyS5'):
-if __name__ == '__main__':
+if __name__ == '__main__' and conectar_serial(porta_serial = '/dev/ttyS5'):
+# if __name__ == '__main__':
+
     # Inicia servidor Flask em thread daemon (roda em background)
     streaming_thread = Thread(target=start_streaming_server)
     streaming_thread.daemon = True
     streaming_thread.start()
+    time.sleep(2)
 
     # Define running como true, enquanto não pedir para finalizar o código, running continua true.
     running = True
 
     # Tenta processar o frame enquanto running estiver true.
     try:
+
+        while True:
+            ser.write(1)
+            print(ser.read_all())
+            time.sleep(1)
         while running:
             mensagemFinal = None
 
-            if sistema == "Windws": mensagem = PROCURAR_VITIMA
-            # else: mensagem = aguardarMensagem()
+            
 
-            mensagem = PROCURAR_VITIMA
+            if sistema == "Windows": mensagem = PROCURAR_VITIMA
+            else: mensagem = aguardarMensagem(True)
+            # print("Mensagem recebida: ",mensagem)
+
+            # mensagem = PROCURAR_VITIMA
 
             if mensagem == PROCURAR_VITIMA: 
                 processar_frame(cap, model, sistema) 
-                if finalResult["classe_id"] is None: mensagemFinal = 'N'
+                if   finalResult["classe_id"] is None: mensagemFinal = 'N'
                 else:
                     graus = quantidadeDeGraus(finalResult["centro"][0])
                     distancia = distanciaVitima(finalResult["diametro"])
@@ -292,7 +311,7 @@ if __name__ == '__main__':
             
             # if mensagemFinal: enviarMensagem(mensagemFinal)
             if mensagemFinal: print("MENSAGEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEM",mensagemFinal)
-            time.sleep(0.5)
+            # time.sleep(0.5)
 
     # Se não conseguir, define que houve um erro durante a execução.
     except Exception as e:

@@ -51,7 +51,7 @@ Caso queira fazer as instalações por conta própria, as dependências estão l
 - Inserir no script de login do usuario a opção já iniciar o terminal com o ambiente python do usuario
 
   - abra o arquivo .nashrc (nano ~/.bashrc)
-  - no final do arquivo adicione (source ~/yolov8-env/bin/activate) (altere o caminho do venv se necessário
+  - no final do arquivo adicione (source ~/yolov8-env/bin/activate) (altere o caminho do venv se necessário)
   - Agora sempre que logar com o usuario no ssh, o ambiente python já será selecionado. (Um comando a menos para esquecer :D )
 
 

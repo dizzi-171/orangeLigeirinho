@@ -282,20 +282,20 @@ if __name__ == '__main__' and conectar_serial(porta_serial = '/dev/ttyS5'):
     # Tenta processar o frame enquanto running estiver true.
     try:
 
-        while True:
-            ser.write(1)
-            print(ser.read_all())
-            time.sleep(1)
+        # while True:
+        #     ser.write(1)
+        #     print(ser.read_all())
+        #     time.sleep(1)
         while running:
             mensagemFinal = None
 
             
 
             if sistema == "Windows": mensagem = PROCURAR_VITIMA
-            else: mensagem = aguardarMensagem(True)
+            # else: mensagem = aguardarMensagem(True)
             # print("Mensagem recebida: ",mensagem)
 
-            # mensagem = PROCURAR_VITIMA
+            mensagem = PROCURAR_VITIMA
 
             if mensagem == PROCURAR_VITIMA: 
                 processar_frame(cap, model, sistema) 

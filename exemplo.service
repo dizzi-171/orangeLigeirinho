@@ -1,0 +1,14 @@
+Unit]
+Description=Meu Script no Boot
+After=network.target
+
+[Service]
+Type=simple
+User=orangepi
+WorkingDirectory=/home/orangepi/
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/home/orangepi/start.sh
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

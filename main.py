@@ -93,7 +93,7 @@ def stream():
                 # Envia o frame no formato multipart/x-mixed-replace
                 yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-            time.sleep(0.05)  # Delay para controlar taxa de atualização do stream
+            time.sleep(0.3)  # Delay para controlar taxa de atualização do stream
     return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route('/temp_data')
@@ -129,7 +129,7 @@ def aguardarMensagem(tempo):
         # print("Lendo mensagem")
         mensagem = ser.read_all()
         time.sleep(0.001)
-        print(mensagem)
+        # print(mensagem)
         if mensagem is not (b''): return mensagem
         # return '0'
         if tempo and (int(time.time()*1000)-milliseconds_inicial)>2500: 
@@ -144,19 +144,88 @@ def enviarMensagem(mensagem):
 
 # define quantos graus tem que girar para chegar no centro do objeto
 def quantidadeDeGraus(x):
-    meioDaImagem=320
+    meioDaImagem=160
 
     # ele pega a posicao do entro do pixel, subtrai com o centro da imagem e divide por 9 (9 pixeis equivalem a 1 grau)
-    graus=int((x-meioDaImagem)/8.88)
+    graus=int((x-meioDaImagem)/4.44)
     return graus
 
 # calcula a distancia do robo ate a vitima
 def distanciaVitima(x):
     # calculo feito para vitimas de 5cm usando funcao exponecial
-    distancia=(int(10*(873*x/5-0.941)))
+    distancia=(int(10*(400/x)))
     print("DISTANCIA",distancia)
 
     return distancia
+
+# def identificar_triangulo_horizontal(cor):
+#     global capturaDeVideo
+
+#     print("IDENTIFICAR TRIANGULO",cor)
+#     # quando pegavamos uma unica imagem, por vezes ele nao atualizava (ficava com a imagem anterior)
+#     # entao fizemos um range de 20 para garantir que houve alteração de imagem
+#     for i in range(20): img=capturarImagem() 
+
+#     salvarImagem(img)
+#     largura = img.shape[1]
+#     altura = img.shape[0]
+#     centroImagem=(altura/2)
+#     tamanhoDoCorte=1 # é o tamanho que ira ficar a quantidade de pixel Y
+
+
+#     mask=aplicar_mascara_hsv(img,cor)
+#     salvarImagem(mask)
+
+#     # corta a imagem, deixando apenas o meio
+#     mask_corte=mask[int(centroImagem-tamanhoDoCorte):int(centroImagem+tamanhoDoCorte),00:int(largura)]
+#     salvarImagem(mask_corte)
+
+#     contadorPixel=0
+#     pixelInicial= None
+#     pixelFinal=None
+#     quantidadeMinimaPixel=20
+
+
+#     # percorre por todo eixo x da imagem
+#     for x in mask_corte[0]:
+
+#         if pixelInicial is not None: # caso nao tenhamos definido o pixel inicial
+#             if contadorPixel-pixelInicial<quantidadeMinimaPixel: # enquanto nao tiver a quantidade minima de pixel sequencial, verifica a cor
+#                 if x!=255: # caso nao seja vermelho, defina como none
+#                     pixelInicial= None
+
+#             else:
+#                 if pixelFinal is not None: # caso nao tenhamos definido o pixel final
+#                     if contadorPixel-pixelFinal<quantidadeMinimaPixel: # enquanto nao tiver a quantidade minima de pixel sequencial, verifica a cor
+#                         if x==255: # caso seja vermelho, defina como none (ainda nao chegou no final)
+#                             pixelFinal= None
+#                     else:
+#                         break
+
+#                 elif x!=255: # caso nao seja vermelho, defina como pixel final
+#                     pixelFinal=contadorPixel
+        
+#         else:
+#             if x==255: # caso seja vermelho, defina como pixel inical
+#                 pixelInicial=contadorPixel
+            
+#         contadorPixel+=1
+
+
+
+#     if pixelInicial is not None: 
+#         # a imagem pode ter pego metade do triangulo, se isso acontecer e se eu tiver o pixel inicial definido, defino o pixel final como o ultimo pixel da imagem
+#         pixelFinal=contadorPixel 
+#         # calcula o pixel do meio do triangulo
+#         pixelCentral=int((pixelFinal+pixelInicial)/2)
+
+#     else:
+#         pixelCentral=None
+
+#     print("Pixel Incial",pixelInicial)
+#     print("Pixel Final",pixelFinal)
+#     print("Pixel Central",pixelCentral)
+#     return(pixelCentral)
 
 # Função para iniciar servidor Flask em thread separada
 def start_streaming_server():
@@ -183,10 +252,23 @@ def processar_frame(cap, model, sistema):
     temp["classe"] = None
 
     # Realiza a leitura da imagem capturada pela câmera, e confere via ret, se a câmera foi lida corretamente, se não, indica falha na captura.
-    ret, frame = cap.read()
-    if not ret:
-        return False  # Falha na captura
-    # print(f"Resolução real: {frame.shape[1]}x{frame.shape[0]}")
+    
+    # ret, frame = cap.read()
+    # frameOK = None
+    # while True:
+    #     frameOk = frame
+    #     ret, frame = cap.read()
+    #     if not ret:
+    #         break  # Falha na captura
+    # # print(f"Resolução real: {frame.shape[1]}x{frame.shape[0]}")
+    
+    i = 0
+    while i < 5:
+        cap.grab()
+        i+=1
+    ret, frame = cap.retrieve()
+    if not ret: print("Nao conseugi capturar imagem")
+
     frame = cv2.resize(frame, (320, 240))
 
     # Indica os resultados que viram do processamento de imagem.
@@ -288,29 +370,40 @@ if __name__ == '__main__' and conectar_serial(porta_serial = '/dev/ttyS5'):
         #     time.sleep(1)
         while running:
             mensagemFinal = None
-
             
-
             if sistema == "Windows": mensagem = PROCURAR_VITIMA
-            # else: mensagem = aguardarMensagem(True)
+            else: mensagem = aguardarMensagem(True)
+
+            # mensagem = PROCURAR_VITIMA
+
             # print("Mensagem recebida: ",mensagem)
-
-            mensagem = PROCURAR_VITIMA
-
             if mensagem == PROCURAR_VITIMA: 
                 processar_frame(cap, model, sistema) 
-                if   finalResult["classe_id"] is None: mensagemFinal = 'N'
+                if   finalResult["classe_id"] is None: mensagemFinal = 'N .'
                 else:
                     graus = quantidadeDeGraus(finalResult["centro"][0])
-                    distancia = distanciaVitima(finalResult["diametro"])
-                    mensagemFinal = str("%s %s ."%(graus,distancia))
+                    distancia = distanciaVitima(finalResult["diametro"]/2)
+                    classeID = finalResult["classe_id"]
+                    mensagemFinal = str("%s %s %s ."%(graus,distancia, classeID))
+
+            # # verifica se esta olhando para um triangulo vermelho, se sim, avanca ate tal
+            # elif mensagem==IDENTIFICAR_TRIANGULO_VERMELHO_HORIZONTAL:
+            #     centro=identificar_triangulo_horizontal(VERMELHO)
+            #     if centro is None: mensagem='N .'
+            #     else: mensagem=str("%s ."%(quantidadeDeGraus(centro)))
+
+            # #  verifica se esta olhando para um triangulo vermelho, se sim, avanca ate tal
+            # elif mensagem_recebida==IDENTIFICAR_TRIANGULO_VERDE_HORIZONTAL:
+            #     centro=identificar_triangulo_horizontal(VERDE)
+            #     if centro is None: mensagem='N .'
+            #     else: mensagem=str("%s ."%(quantidadeDeGraus(centro)))
 
             else: 
                 print("Ordem não compatível com as existentes - Reiniciando mensagem")
                 continue
             
-            # if mensagemFinal: enviarMensagem(mensagemFinal)
-            if mensagemFinal: print("MENSAGEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEM",mensagemFinal)
+            if mensagemFinal: enviarMensagem(mensagemFinal)
+            # if mensagemFinal: print("MENSAGEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEM",mensagemFinal)
             # time.sleep(0.5)
 
     # Se não conseguir, define que houve um erro durante a execução.

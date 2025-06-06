@@ -1,6 +1,11 @@
 @echo off
-scp main.py orangepi@192.168.1.107:~
-scp ./templates/index.html orangepi@192.168.1.107:~/templates
+echo Enviando main.py para o Orange Pi...
+scp "%~dp0main.py" orangepi@192.168.1.107:~
+
+echo Enviando index.html para o Orange Pi...
+scp "%~dp0\templates\index.html" orangepi@192.168.1.107:~/templates
+
+echo Matando scripts python no Orange Pi...
 ssh orangepi@192.168.1.107 "killall python"
 @REM ssh banana@192.168.2.151 "bash ~/testeBanana/executa.sh" || (
 @REM     echo "Interrupção detectada! Enviando sinal para o script remoto..."

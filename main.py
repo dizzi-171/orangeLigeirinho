@@ -7,7 +7,7 @@ import platform
 # Detecta sistema operacional (Windows, Linux, etc)
 sistema = platform.system()
 import serial
-
+import numpy as np
 import os
 import json
 import glob
@@ -15,6 +15,11 @@ from flask import Flask, Response, render_template, jsonify
 from threading import Thread
 
 PROCURAR_VITIMA = (b'0')
+IDENTIFICAR_TRIANGULO_VERMELHO_HORIZONTAL = (b'1')
+IDENTIFICAR_TRIANGULO_VERDE_HORIZONTAL = (b'2')
+
+VERMELHO = 0
+VERDE = 1
 
 # Define o número de threads para PyTorch (CPU)
 torch.set_num_threads(4)
@@ -158,74 +163,132 @@ def distanciaVitima(x):
 
     return distancia
 
-# def identificar_triangulo_horizontal(cor):
-#     global capturaDeVideo
 
-#     print("IDENTIFICAR TRIANGULO",cor)
-#     # quando pegavamos uma unica imagem, por vezes ele nao atualizava (ficava com a imagem anterior)
-#     # entao fizemos um range de 20 para garantir que houve alteração de imagem
-#     for i in range(20): img=capturarImagem() 
+def aplicar_mascara_hsv(img,cor):
+    # primeiro valor - H (0-180) - matix
+    # segundo valor - S (0-255) - saturacao
+    # terceiro valor - V (0-255) - brilho
 
-#     salvarImagem(img)
-#     largura = img.shape[1]
-#     altura = img.shape[0]
-#     centroImagem=(altura/2)
-#     tamanhoDoCorte=1 # é o tamanho que ira ficar a quantidade de pixel Y
-
-
-#     mask=aplicar_mascara_hsv(img,cor)
-#     salvarImagem(mask)
-
-#     # corta a imagem, deixando apenas o meio
-#     mask_corte=mask[int(centroImagem-tamanhoDoCorte):int(centroImagem+tamanhoDoCorte),00:int(largura)]
-#     salvarImagem(mask_corte)
-
-#     contadorPixel=0
-#     pixelInicial= None
-#     pixelFinal=None
-#     quantidadeMinimaPixel=20
-
-
-#     # percorre por todo eixo x da imagem
-#     for x in mask_corte[0]:
-
-#         if pixelInicial is not None: # caso nao tenhamos definido o pixel inicial
-#             if contadorPixel-pixelInicial<quantidadeMinimaPixel: # enquanto nao tiver a quantidade minima de pixel sequencial, verifica a cor
-#                 if x!=255: # caso nao seja vermelho, defina como none
-#                     pixelInicial= None
-
-#             else:
-#                 if pixelFinal is not None: # caso nao tenhamos definido o pixel final
-#                     if contadorPixel-pixelFinal<quantidadeMinimaPixel: # enquanto nao tiver a quantidade minima de pixel sequencial, verifica a cor
-#                         if x==255: # caso seja vermelho, defina como none (ainda nao chegou no final)
-#                             pixelFinal= None
-#                     else:
-#                         break
-
-#                 elif x!=255: # caso nao seja vermelho, defina como pixel final
-#                     pixelFinal=contadorPixel
+    # trasforma a imagem para HSV
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    
+    if cor == VERMELHO:
         
-#         else:
-#             if x==255: # caso seja vermelho, defina como pixel inical
-#                 pixelInicial=contadorPixel
+        # limite inferior do VERMELHO
+        lower1 = np.array([0, 100, 20])
+        upper1 = np.array([10, 255, 255])    
+        # limite superior do VERMELHO
+        lower2 = np.array([160,100,20])
+        upper2 = np.array([179,255,255])
+        
+        # criando mascara baixa e alta
+        lower_mask = cv2.inRange(hsv, lower1, upper1)
+        upper_mask = cv2.inRange(hsv, lower2, upper2)
+        
+        # juncao das mascara
+        # tudo que é branco é vermelho e o restante (preto) NAO vermelho
+        mask = lower_mask + upper_mask
+
+
+    else: #verde
+        lower_green = np.array([45, 35, 30])
+        upper_green = np.array([75, 255, 255])
+
+        # criando mascara
+        mask = cv2.inRange(hsv, lower_green, upper_green)
+
+    return mask
+
+def identificar_triangulo_horizontal(cor):
+    global cap, frame_count, latest_frame
+
+    print("IDENTIFICAR TRIANGULO",cor)
+    # quando pegavamos uma unica imagem, por vezes ele nao atualizava (ficava com a imagem anterior)
+    # entao fizemos um range de 20 para garantir que houve alteração de imagem
+    i = 0
+    while i < 5:
+        cap.grab()
+        i+=1
+    ret, frame = cap.retrieve()
+    if not ret: print("Nao conseugi capturar imagem") 
+
+    frame = cv2.resize(frame, (320, 240))
+
+    # Pega as informações base da imagem original
+    img_name = f"F{frame_count:04d}.jpg"
+    cv2.imwrite(os.path.join(output_dir, img_name), frame)
+    # latest_frame = frame
+    largura = frame.shape[1]
+    altura = frame.shape[0]
+    centroImagem=(altura/2)
+    tamanhoDoCorte=1
+    frame_count += 1
+    # time.sleep(0.5)
+
+    # Aplica a mascara preta e branca na imagem
+    img_name = f"M{frame_count:04d}.jpg"
+    mask=aplicar_mascara_hsv(frame,cor)
+    cv2.imwrite(os.path.join(output_dir, img_name), mask)
+    latest_frame = mask
+    frame_count += 1
+    # time.sleep(0.5)
+
+
+    # corta a imagem, deixando apenas o meio
+    img_name = f"C{frame_count:04d}.jpg"
+    mask_corte=mask[int(centroImagem-tamanhoDoCorte):int(centroImagem+tamanhoDoCorte),00:int(largura)]
+    cv2.imwrite(os.path.join(output_dir, img_name), mask)
+    # latest_frame = mask_corte
+    frame_count += 1
+    # time.sleep(0.5)
+
+
+    contadorPixel=0
+    pixelInicial= None
+    pixelFinal=None
+    quantidadeMinimaPixel=20
+
+
+    # percorre por todo eixo x da imagem
+    for x in mask_corte[0]:
+
+        if pixelInicial is not None: # caso nao tenhamos definido o pixel inicial
+            if contadorPixel-pixelInicial<quantidadeMinimaPixel: # enquanto nao tiver a quantidade minima de pixel sequencial, verifica a cor
+                if x!=255: # caso nao seja vermelho, defina como none
+                    pixelInicial= None
+
+            else:
+                if pixelFinal is not None: # caso nao tenhamos definido o pixel final
+                    if contadorPixel-pixelFinal<quantidadeMinimaPixel: # enquanto nao tiver a quantidade minima de pixel sequencial, verifica a cor
+                        if x==255: # caso seja vermelho, defina como none (ainda nao chegou no final)
+                            pixelFinal= None
+                    else:
+                        break
+
+                elif x!=255: # caso nao seja vermelho, defina como pixel final
+                    pixelFinal=contadorPixel
+        
+        else:
+            if x==255: # caso seja vermelho, defina como pixel inical
+                pixelInicial=contadorPixel
             
-#         contadorPixel+=1
+        contadorPixel+=1
 
 
 
-#     if pixelInicial is not None: 
-#         # a imagem pode ter pego metade do triangulo, se isso acontecer e se eu tiver o pixel inicial definido, defino o pixel final como o ultimo pixel da imagem
-#         pixelFinal=contadorPixel 
-#         # calcula o pixel do meio do triangulo
-#         pixelCentral=int((pixelFinal+pixelInicial)/2)
+    if pixelInicial is not None: 
+        # a imagem pode ter pego metade do triangulo, se isso acontecer e se eu tiver o pixel inicial definido, defino o pixel final como o ultimo pixel da imagem
+        pixelFinal=contadorPixel 
+        # calcula o pixel do meio do triangulo
+        pixelCentral=int((pixelFinal+pixelInicial)/2)
 
-#     else:
-#         pixelCentral=None
+    else:
+        pixelCentral=None
 
-#     print("Pixel Incial",pixelInicial)
-#     print("Pixel Final",pixelFinal)
-#     print("Pixel Central",pixelCentral)
-#     return(pixelCentral)
+    print("Pixel Incial",pixelInicial)
+    print("Pixel Final",pixelFinal)
+    print("Pixel Central",pixelCentral)
+    return(pixelCentral)
 
 # Função para iniciar servidor Flask em thread separada
 def start_streaming_server():
@@ -300,7 +363,7 @@ def processar_frame(cap, model, sistema):
                 temp["conf"] = round(conf, 2)
 
     # Realiza o frame count, indicando a próxima imagem a ser salva, com seu nome em sequência.
-    img_name = f"{frame_count:04d}.jpg"
+    img_name = f"B{frame_count:04d}.jpg"
     
     # Se a imagem for encontrada, mostra a circunferência em volta da vítima, com base no centro e no raio.
     if temp["centro"]:
@@ -309,7 +372,7 @@ def processar_frame(cap, model, sistema):
         centro = tuple(temp["centro"])
         raio = temp["diametro"] // 2
         marked_frame = cv2.circle(annotated_frame, centro, raio, (0, 255, 0), 2)
-        resultados[img_name] = temp
+        resultados[img_name] = (temp)
     # Se não houver centro, não houve vitima.
     else:
         print("Nada encontrado")
@@ -370,14 +433,15 @@ if __name__ == '__main__' and conectar_serial(porta_serial = '/dev/ttyS5'):
         #     time.sleep(1)
         while running:
             mensagemFinal = None
+            # time.sleep(1)
             
-            if sistema == "Windows": mensagem = PROCURAR_VITIMA
-            else: mensagem = aguardarMensagem(True)
+            if sistema == "Windows": mensagemRecebida = PROCURAR_VITIMA
+            else: mensagemRecebida = aguardarMensagem(True)
 
-            # mensagem = PROCURAR_VITIMA
+            # mensagem = IDENTIFICAR_TRIANGULO_VERDE_HORIZONTAL
 
-            # print("Mensagem recebida: ",mensagem)
-            if mensagem == PROCURAR_VITIMA: 
+            print("Mensagem recebida: ",mensagemRecebida)
+            if mensagemRecebida == PROCURAR_VITIMA: 
                 processar_frame(cap, model, sistema) 
                 if   finalResult["classe_id"] is None: mensagemFinal = 'N .'
                 else:
@@ -386,25 +450,30 @@ if __name__ == '__main__' and conectar_serial(porta_serial = '/dev/ttyS5'):
                     classeID = finalResult["classe_id"]
                     mensagemFinal = str("%s %s %s ."%(graus,distancia, classeID))
 
-            # # verifica se esta olhando para um triangulo vermelho, se sim, avanca ate tal
-            # elif mensagem==IDENTIFICAR_TRIANGULO_VERMELHO_HORIZONTAL:
-            #     centro=identificar_triangulo_horizontal(VERMELHO)
-            #     if centro is None: mensagem='N .'
-            #     else: mensagem=str("%s ."%(quantidadeDeGraus(centro)))
+            # verifica se esta olhando para um triangulo vermelho, se sim, avanca ate tal
+            elif mensagemRecebida==IDENTIFICAR_TRIANGULO_VERMELHO_HORIZONTAL:
+                centro=identificar_triangulo_horizontal(VERMELHO)
+                if centro is None: 
+                    print("SEM CENTRO")
+                    mensagemFinal='N .'
+                else: mensagemFinal=str("%s ."%(quantidadeDeGraus(centro)))
 
-            # #  verifica se esta olhando para um triangulo vermelho, se sim, avanca ate tal
-            # elif mensagem_recebida==IDENTIFICAR_TRIANGULO_VERDE_HORIZONTAL:
-            #     centro=identificar_triangulo_horizontal(VERDE)
-            #     if centro is None: mensagem='N .'
-            #     else: mensagem=str("%s ."%(quantidadeDeGraus(centro)))
+            #  verifica se esta olhando para um triangulo vermelho, se sim, avanca ate tal
+            elif mensagemRecebida==IDENTIFICAR_TRIANGULO_VERDE_HORIZONTAL:
+                centro=identificar_triangulo_horizontal(VERDE)
+                if centro is None: 
+                    print("SEM CENTRO")
+                    mensagemFinal='N .'
+                else: mensagemFinal=str("%s ."%(quantidadeDeGraus(centro)))
 
             else: 
                 print("Ordem não compatível com as existentes - Reiniciando mensagem")
                 continue
-            
+
+            print("MENSAGEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEM",mensagemFinal)
             if mensagemFinal: enviarMensagem(mensagemFinal)
-            # if mensagemFinal: print("MENSAGEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEM",mensagemFinal)
             # time.sleep(0.5)
+            print("\n\n")
 
     # Se não conseguir, define que houve um erro durante a execução.
     except Exception as e:

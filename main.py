@@ -31,7 +31,9 @@ model = YOLO("./best.onnx")
 
 # Inicializa a captura da webcam (device 0 windows device 1 orange)
 if sistema == "Windows": cap = cv2.VideoCapture(0)
-else: cap = cv2.VideoCapture(1)
+else: 
+    try: cap = cv2.VideoCapture(1)
+    except: cap = cv2.VideoCapture(2)
 
 # Define resolução da captura para 320x240
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
@@ -394,8 +396,8 @@ def processar_frame(cap, model, sistema):
             raise erro
 
     # Define a imagem redimensionada. 
-    resized_frame = cv2.resize(marked_frame, (160, 120))
-    cv2.imwrite(os.path.join(output_dir, img_name), resized_frame)
+    # resized_frame = cv2.resize(marked_frame, (160, 120))
+    cv2.imwrite(os.path.join(output_dir, img_name), marked_frame)
     # Define a última como a última imagem não redimensionada.
     latest_frame = marked_frame.copy()
 
@@ -438,7 +440,7 @@ if __name__ == '__main__' and conectar_serial(porta_serial = '/dev/ttyS5'):
             if sistema == "Windows": mensagemRecebida = PROCURAR_VITIMA
             else: mensagemRecebida = aguardarMensagem(True)
 
-            # mensagem = IDENTIFICAR_TRIANGULO_VERDE_HORIZONTAL
+            # mensagemRecebida = PROCURAR_VITIMA
 
             print("Mensagem recebida: ",mensagemRecebida)
             if mensagemRecebida == PROCURAR_VITIMA: 
@@ -470,7 +472,7 @@ if __name__ == '__main__' and conectar_serial(porta_serial = '/dev/ttyS5'):
                 print("Ordem não compatível com as existentes - Reiniciando mensagem")
                 continue
 
-            print("MENSAGEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEM",mensagemFinal)
+            # print("MENSAGEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEM",mensagemFinal)
             if mensagemFinal: enviarMensagem(mensagemFinal)
             # time.sleep(0.5)
             print("\n\n")

@@ -19,7 +19,8 @@ Caso queira fazer as instalações por conta própria, as dependências estão l
 - Primeiro, iremos alterar a porta USB que está como OTG para HOST:
   - Rode o comando `armbian-config` (`sudo armbian-config`), entrar em **System > dtc**.
   - O dts será gerado, encontre as portas USB.
-  - Agora altere em todas as portas USB de `status = "disabled"` para `status = "okay"`.
+  - Agora altere em todas as portas USB de `status = "disabled"` para `status = "okay"`, exceto na que possui `dr_mode = "peripheral"`.
+  - Altere nessa `peripheral`, de `status = "okay"` para `status = "disabled"`
   - PRINT DE UMA PORTA SENDO ALTERADA DE DISABLED PARA OKAY
 
 - Reinicie o Orange e confira se consegue se conectar nas duas câmeras agora.

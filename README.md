@@ -7,9 +7,10 @@ Versão do armbian utilizada é baseada em debian 12 (https://www.armbian.com/or
 
 Agora devemos instalar no cartão SD, dar boot e configurar inicialmente a instalação.
 
-Atualize o APT (`sudo apt update`)  
-Instale o pip (`sudo apt install pip`)
-Atualize o pip (`sudo pip install --update`)
+Atualize o APT (`sudo apt update`).
+Instale o pip (`sudo apt install pip`).
+Atualize o pip (`sudo pip install --update`).
+Instale o python venv (`sudo apt install python3-venv`).
 
 Devemos executar o script `setup_yolo.sh` (bash ./setup_yolo.sh para que as depencências sejam instaladas e o `venv` (ambiente virtual python) seja criado automaticamente.  
 Caso queira fazer as instalações por conta própria, as dependências estão lsitadas no arquivo `requirements.txt`.

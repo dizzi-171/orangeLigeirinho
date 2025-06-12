@@ -39,6 +39,39 @@ Caso queira fazer as instalações por conta própria, as dependências estão l
     - Faça o mesmo para a outra porta e assim saberá a numeração de cada porta USB.
   - Agora no código precisaremos usar uma funão que identifica qual porta video está conectada a porta USB física que determinada câmera está, e assim relacionar o objeto da câmera no codigo, com a câmera correta.
   - Um exemplo de função para isso está no arquivo `econtrarPortaCamera.py`
+ 
+## Para utilizar duas câmeras (resgate e seguidor)
+
+- Vamos precisar alterar o Device Tree do Orange.
+- Primeiro, iremos alterar a porta USB que está como OTG para HOST:
+  - Rode o comando `armbian-config` (`sudo armbian-config`), entrar em **System > dtc**.
+  - O dts será gerado, encontre as portas USB.
+  - Agora altere em todas as portas USB de `status = "disabled"` para `status = "okay"`.
+  - PRINT DE UMA PORTA SENDO ALTERADA DE DISABLED PARA OKAY
+
+- Reinicie o Orange e confira se consegue se conectar nas duas câmeras agora.
+- Lembre-se que para conectar, são criadas duas portas simbólicas `video` para cada porta USB física. Teste todas para ver se ambas conectam em alguma porta `video`.
+- Com isso das portas simbólicas, ainda há o problema de não sabermos qual câmera é qual. Afinal, a câmera na USB1 pode estar em qualquer porta simbólica `video`.
+- Para resolver esse problema, devemos garantir que estamos conectando na `video` correspondente à USB física correta:
+  - Primeiro alteraremos o dts para ativar as portas sempre no mesmo modo.
+    - Gere o dts novamente e nele encontre as portas USB físicas mais uma vez.
+    - Perceba que cada porta USB física possui duas nomeações: OHCI e EHCI. OHCI significa USB 1.0 e EHCI, USB 2.0.
+    - A alteração que faremos é desabilitar todas as OHCI, para garantir sempre a maior velocidade de comunicação disponível, além de evitar que uma porta seja identificada como 1.0 inesperadamente, o que pode causar problemas.
+  
+  - Reinicie o Orange, conecte uma câmera em uma porta USB física e rode o comando `ls /dev` para exibir as portas simbólicas `video` existentes.
+  - Agora iremos analisar qual nome cada porta física recebe:
+    - Rode o comando `readlink -f /sys/class/video4linux/video1/device` (Altere `video1` para cada porta `video` disponível).
+    - A saída será algo como:
+      ```
+      /sys/devices/platform/soc/5200000.usb/usb2/2-1/2-1:1.0
+      ```
+    - Note que temos o número `5200000`, que corresponde ao nome de uma das portas físicas no dts. Assim, essa porta USB corresponde à `5200000` no dts.
+    - Lembre-se de ver o nome em cada porta `video`. No meu caso, a outra recebe o nome de `5204000`. A depender de outros fatores, o Orange pode relacionar qualquer um desses nomes a qualquer porta USB.
+    - Logo, nós devemos, a cada execução, encontrar qual porta `video` tem link com as portas físicas que iniciam com `520`.
+    - Faça o mesmo para a outra porta e assim saberá a numeração de cada porta USB.
+
+  - Agora no código, precisaremos usar uma função que identifica qual porta `video` está conectada à porta USB física que determinada câmera está. Assim, relacionamos o objeto da câmera no código com a câmera correta.
+  - Um exemplo de função para isso está no arquivo `encontrarPortaCamera.py`.
 
 ## Opcionais, mas altamente recomendados:
 

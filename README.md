@@ -19,6 +19,7 @@ Caso queira fazer as instalações por conta própria, as dependências estão l
   - Rode o comando 'armbian-config' ('sudo armbian-config'), entrar em **System > dtc**.
   - O dts será gerado, encontre as portas USB.
   - Agora altere em todas as portas USB de `status = 'disabled'` para `status = 'okay'`.
+  - E na porta que possui 'dr_mode = "peripheral"', altere de 'status = 'okay'' para 'status = 'disabled''
   - **PRINT DE UMA PORTA SENDO ALTERADA DE DISABLED PARA OKAY**.
 - Reinicie o Orange e confira se consegue se conectar nas duas cameras agora.
 - Lembre-se que para conectar, são criadas duas portas simbolicas video para cada porta USB física, teste todas para ver se ambas conectam em alguma porta video.

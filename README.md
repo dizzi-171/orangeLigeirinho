@@ -11,7 +11,7 @@ Atualize o APT (`sudo apt update`)
 Instale o pip (`sudo apt install pip`)
 Atualize o pip (`sudo pip install --update`)
 
-Devemos executar o script `setup_yolo.sh` para que as depencências sejam instaladas e o `venv` (ambiente virtual python) seja criado automaticamente.  
+Devemos executar o script `setup_yolo.sh` (bash ./setup_yolo.sh para que as depencências sejam instaladas e o `venv` (ambiente virtual python) seja criado automaticamente.  
 Caso queira fazer as instalações por conta própria, as dependências estão lsitadas no arquivo `requirements.txt`.
  
 ## Para utilizar duas câmeras (resgate e seguidor)

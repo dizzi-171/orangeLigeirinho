@@ -12,7 +12,7 @@ Instale o pip (`sudo apt install pip`).
 Atualize o pip (`sudo pip install --update`).  
 Instale o python venv (`sudo apt install python3-venv`).  
 Instale o dos2unix (`sudo apt install dos2unix`).  
-Rode o comando `dos2unix` para converter a formatação do arquivo `setup_yolo.sh` de windows para linx.
+Rode o comando `dos2unix` para converter a formatação do arquivo `setup_yolo.sh` de windows para linux.
 
 Devemos executar o script `setup_yolo.sh` (`bash ./setup_yolo.sh`) para que as depencências sejam instaladas e o `venv` (ambiente virtual python) seja criado automaticamente.  
 Caso queira fazer as instalações por conta própria, as dependências estão lsitadas no arquivo `requirements.txt`.

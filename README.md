@@ -20,7 +20,13 @@ Caso queira fazer as instalações por conta própria, as dependências estão l
   - Rode o comando `armbian-config` (`sudo armbian-config`), entrar em **System > dtc**.
   - O dts será gerado, encontre as portas USB.
   - Agora altere em todas as portas USB de `status = "disabled"` para `status = "okay"`, exceto na que possui `dr_mode = "peripheral"`.
+    
+  ![image](https://github.com/user-attachments/assets/aede3413-06be-4bf0-abaa-e6ffe0465555)
+
   - Altere nessa `peripheral`, de `status = "okay"` para `status = "disabled"`
+  
+  ![image](https://github.com/user-attachments/assets/39141d5b-bc1f-4e0a-936d-2c6889973348)
+
   - PRINT DE UMA PORTA SENDO ALTERADA DE DISABLED PARA OKAY
 
 - Reinicie o Orange e confira se consegue se conectar nas duas câmeras agora.
@@ -33,15 +39,18 @@ Caso queira fazer as instalações por conta própria, as dependências estão l
     - A alteração que faremos é desabilitar todas as OHCI, para garantir sempre a maior velocidade de comunicação disponível, além de evitar que uma porta seja identificada como 1.0 inesperadamente, o que pode causar problemas.
   
   - Reinicie o Orange, conecte uma câmera em uma porta USB física e rode o comando `ls /dev` para exibir as portas simbólicas `video` existentes.
+    
+    ![image](https://github.com/user-attachments/assets/45ec750d-beb6-4f3c-892c-d2e700f0809a)
+
   - Agora iremos analisar qual nome cada porta física recebe:
     - Rode o comando `readlink -f /sys/class/video4linux/video1/device` (Altere `video1` para cada porta `video` disponível).
     - A saída será algo como:
-      ```
-      /sys/devices/platform/soc/5200000.usb/usb2/2-1/2-1:1.0
-      ```
+      
+      ![image](https://github.com/user-attachments/assets/45f73666-e24d-4ede-bc23-cf068e82ab2b)
+
     - Note que temos o número `5200000`, que corresponde ao nome de uma das portas físicas no dts. Assim, essa porta USB corresponde à `5200000` no dts.
-    - Lembre-se de ver o nome em cada porta `video`. No meu caso, a outra recebe o nome de `5204000`. A depender de outros fatores, o Orange pode relacionar qualquer um desses nomes a qualquer porta USB.
-    - Logo, nós devemos, a cada execução, encontrar qual porta `video` tem link com as portas físicas que iniciam com `520`.
+    - Lembre-se de ver o nome em cada porta `video`.
+    - Logo, nós devemos, a cada execução, encontrar qual porta `video` tem link com as portas físicas que possuem no seu endereço, `520000`.
     - Faça o mesmo para a outra porta e assim saberá a numeração de cada porta USB.
 
   - Agora no código, precisaremos usar uma função que identifica qual porta `video` está conectada à porta USB física que determinada câmera está. Assim, relacionamos o objeto da câmera no código com a câmera correta.

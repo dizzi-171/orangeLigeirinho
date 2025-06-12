@@ -50,7 +50,6 @@ Caso queira fazer as instalações por conta própria, as dependências estão l
     - Lembre-se de ver o nome em cada porta `video`.
     - Logo, nós devemos, a cada execução, encontrar qual porta `video` tem link com as portas físicas que possuem no seu endereço, `520000`.
     - Faça o mesmo para a outra porta e assim saberá a numeração de cada porta USB.
-
   - Agora no código, precisaremos usar uma função que identifica qual porta `video` está conectada à porta USB física que determinada câmera está. Assim, relacionamos o objeto da câmera no código com a câmera correta.
   - Um exemplo de função para isso está no arquivo `encontrarPortaCamera.py`.
 

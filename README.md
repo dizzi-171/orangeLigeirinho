@@ -27,8 +27,6 @@ Caso queira fazer as instalações por conta própria, as dependências estão l
   
   ![image](https://github.com/user-attachments/assets/39141d5b-bc1f-4e0a-936d-2c6889973348)
 
-  - PRINT DE UMA PORTA SENDO ALTERADA DE DISABLED PARA OKAY
-
 - Reinicie o Orange e confira se consegue se conectar nas duas câmeras agora.
 - Lembre-se que para conectar, são criadas duas portas simbólicas `video` para cada porta USB física. Teste todas para ver se ambas conectam em alguma porta `video`.
 - Com isso das portas simbólicas, ainda há o problema de não sabermos qual câmera é qual. Afinal, a câmera na USB1 pode estar em qualquer porta simbólica `video`.

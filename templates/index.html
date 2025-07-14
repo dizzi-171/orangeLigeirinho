@@ -96,7 +96,8 @@
                             Classe: ${data.classe}<br>
                             Diâmetro: ${data.diametro}<br>
                             Centro: ${data.centro ? `(${data.centro[0]}, ${data.centro[1]})` : 'Não detectado'}<br>
-                            Confiança: ${data.conf}`;
+                            Confiança: ${data.conf}<br>
+                            Verde: ${data.mensagemVerde? `(${data.mensagemVerde})` : 'Não detectado'};`
                     } 
                     else {
                         document.getElementById('temp_info').innerHTML = 'Aguardando dados da IA...';
@@ -108,7 +109,7 @@
         }
 
         // Atualiza a cada 2 segundos
-        setInterval(atualizarTemp, 320);
+        setInterval(atualizarTemp, 350); //350
 
         // Função de parar o stream
         function stopStream() {

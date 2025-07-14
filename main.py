@@ -11,12 +11,15 @@ import numpy as np
 import os
 import json
 import glob
+import os
+import subprocess
 from flask import Flask, Response, render_template, jsonify
 from threading import Thread
 
 PROCURAR_VITIMA = (b'0')
 IDENTIFICAR_TRIANGULO_VERMELHO_HORIZONTAL = (b'1')
 IDENTIFICAR_TRIANGULO_VERDE_HORIZONTAL = (b'2')
+SEGUIR_LINHA = (b'3')
 
 VERMELHO = 0
 VERDE = 1
@@ -29,13 +32,62 @@ print(f"Usando dispositivo: {device}")
 # Carrega o modelo YOLOv8 (arquivo ONNX)
 model = YOLO("./best.onnx")
 
+def encontrar_video_por_porta_usb(porta_usb_alvo):
+    video_dir = '/sys/class/video4linux'
+    listdirorig = (os.listdir(video_dir))
+    print(listdirorig.sort())
+    for nome in listdirorig:
+        print(nome)
+        if not nome.startswith('video'):
+            continue
+
+        # Caminho do link simbólico real até o dispositivo
+        video_device_path = f'{video_dir}/{nome}/device'
+
+        try:
+            # Executa: readlink -f /sys/class/video4linux/videoX/device
+            caminho_completo = subprocess.check_output(['readlink', '-f', video_device_path], text=True).strip()
+
+            # Verifica se a porta física está presente no caminho
+            if porta_usb_alvo in caminho_completo:
+                return nome
+
+        except subprocess.CalledProcessError:
+            continue
+
+    return None
+
+# video_name = encontrar_video_por_porta_usb("510")  # ex: 'video#'
+# # video_index1 = int(video_name1.replace('video', ''))  # vira #
+# video_index = (f"/dev/{video_name}") # ex: '/dev/video#'
+# cap = cv2.VideoCapture(video_index ) # Isso sim funciona
+video_name = encontrar_video_por_porta_usb("520")  # ex: 'video#'
+# video_index1 = int(video_name1.replace('video', ''))  # vira #
+video_index = (f"/dev/{video_name}") # ex: '/dev/video#'
+cap = cv2.VideoCapture(video_index ) # Isso sim funciona
+
+# video_name2 = encontrar_video_por_porta_usb("520")  # ex: 'video3'
+# # video_index2 = int(video_name2.replace('video', ''))  # vira 3
+# video_index2 = (f"/dev/{video_name2}")  # ex: '/dev/video#'
+# print(video_index2)
+# cap2 = cv2.VideoCapture(video_index2)  # Isso sim funciona
+
+# if video_index2.isOpened() == False: 
+#     print("Erro ao abrir a segunda câmera. Verifique se o caminho está correto ou se a câmera está conectada.")
+
+
+
 # Inicializa a captura da webcam (device 0 windows device 1 orange)
-if sistema == "Windows": cap = cv2.VideoCapture(0)
-else: 
-    try: cap = cv2.VideoCapture(1)
-    except: cap = cv2.VideoCapture(2)
+# if sistema == "Windows": cap = cv2.VideoCapture(0)
+# else: 
+#     cap = cv2.VideoCapture(int(camPath1))
+#     # if not cap.isOpened() == None: print("Erro ao abrir a primeira câmera. Verifique se o caminho está correto ou se a câmera está conectada.")
+#     cap2 = cv2.VideoCapture(int(camPath2))
+#     # if not cap2.isOpened(): print("Erro ao abrir a segunda câmera. Verifique se o caminho está correto ou se a câmera está conectada.")
 
 # Define resolução da captura para 320x240
+width = 160
+height = 120
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
@@ -68,7 +120,8 @@ finalResult = {
     "classe_id": None,
     "diametro": 0,
     "centro": None,
-    "conf": None
+    "conf": None,
+    "mensagemVerde": None
 }
 
 # Inicializa o Flask para criar servidor web que exibirá o stream
@@ -100,7 +153,7 @@ def stream():
                 # Envia o frame no formato multipart/x-mixed-replace
                 yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-            time.sleep(0.3)  # Delay para controlar taxa de atualização do stream
+            time.sleep(0.04)  # Delay para controlar taxa de atualização do stream
     return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route('/temp_data')
@@ -407,10 +460,208 @@ def processar_frame(cap, model, sistema):
     # Adiciona mais um ao frame counta para continuar printando e adicionando imagens com nomes sequenciais.
     frame_count += 1
 
+def expand_box(box, scale=1.6):
+    center = np.mean(box, axis=0)
+    expanded = (box - center) * scale + center
+    return np.intp(expanded)
+
+def order_box_points(pts):
+    rect = np.zeros((4, 2), dtype="float32")
+    s = pts.sum(axis=1)
+    rect[0] = pts[np.argmin(s)]  # top-left
+    rect[2] = pts[np.argmax(s)]  # bottom-right
+    diff = np.diff(pts, axis=1)
+    rect[1] = pts[np.argmin(diff)]  # top-right
+    rect[3] = pts[np.argmax(diff)]  # bottom-left
+    return rect.astype(int)
+
+def draw_quadrant_lines_and_labels(frame, box):
+    expanded_box = expand_box(box, scale=1.6)
+    rect = order_box_points(expanded_box)
+
+    top_mid = ((rect[0] + rect[1]) // 2)
+    bottom_mid = ((rect[2] + rect[3]) // 2)
+    left_mid = ((rect[0] + rect[3]) // 2)
+    right_mid = ((rect[1] + rect[2]) // 2)
+
+    cv2.line(frame, tuple(left_mid), tuple(right_mid), (255, 255, 255), 1)
+    cv2.line(frame, tuple(top_mid), tuple(bottom_mid), (255, 255, 255), 1)
+    cv2.polylines(frame, [expanded_box], isClosed=True, color=(255, 255, 255), thickness=1)
+
+    offset = 10
+    labels = {
+        "(-x, +y)": rect[0] - [offset, offset],
+        "(+x, +y)": rect[1] + [offset, -offset],
+        "(+x, -y)": rect[2] + [offset, offset],
+        "(-x, -y)": rect[3] - [offset, -offset],
+    }
+
+    for text, pos in labels.items():
+        x, y = pos.astype(int)
+        # cv2.putText(frame, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 0, 255), 1, cv2.LINE_AA)
+
+    return rect
+
+def detectar_quadrantes():
+    print("Detectando quadrantes...")
+    start_time = time.time()
+
+    # i = 0
+    # while i < 5:
+    cap.grab()
+    #     i+=1
+    ret, frame = cap.retrieve()
+    frame = cv2.resize(frame, (width, height))
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+
+    # lower_green = np.array([45, 40, 55])#h=40 # S=40,v = 55
+    # upper_green = np.array([90, 255,255])# H=80
+    lower_green = np.array([45, 55, 53])#h=40 # S=40,v = 65
+    upper_green = np.array([90, 255,255])# H=80
+    mask_green = cv2.inRange(hsv, lower_green, upper_green)
+    
+
+    contours, _ = cv2.findContours(mask_green, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    dark_threshold = 70
+
+    left = ""
+    right = ""
+    false = ""
+    msg = ""
+    chosens_quadrants = []
+
+    for contour in contours:
+        # print(cv2.contourArea(contour))
+        if cv2.contourArea(contour) < 100:
+            continue
+
+        rect = cv2.minAreaRect(contour)
+        box = cv2.boxPoints(rect)
+        box = np.intp(box)
+
+        ordered_box = order_box_points(box)
+        expanded_box = expand_box(ordered_box, scale=1.8)
+
+        mask_expanded = np.zeros(frame.shape[:2], dtype=np.uint8)
+        cv2.fillPoly(mask_expanded, [expanded_box], 255)
+
+        mask_inner = np.zeros(frame.shape[:2], dtype=np.uint8)
+        cv2.fillPoly(mask_inner, [ordered_box], 255)
+
+        mask_ring = cv2.bitwise_and(mask_expanded, cv2.bitwise_not(mask_inner))
+
+        cx = int(np.mean([p[0] for p in expanded_box]))
+        cy = int(np.mean([p[1] for p in expanded_box]))
+        # print(cy)
+
+        quadrants = {
+            "(-x, +y)": np.zeros_like(mask_ring),
+            "(+x, +y)": np.zeros_like(mask_ring),
+            "(+x, -y)": np.zeros_like(mask_ring),
+            "(-x, -y)": np.zeros_like(mask_ring),
+        }
+
+        for y in range(mask_ring.shape[0]):
+            for x in range(mask_ring.shape[1]):
+                if mask_ring[y, x]:
+                    if x < cx and y < cy:
+                        quadrants["(-x, +y)"][y, x] = 255
+                    elif x >= cx and y < cy:
+                        quadrants["(+x, +y)"][y, x] = 255
+                    elif x >= cx and y >= cy:
+                        quadrants["(+x, -y)"][y, x] = 255
+                    elif x < cx and y >= cy:
+                        quadrants["(-x, -y)"][y, x] = 255
+
+        dark_counts = {}
+        for q, mask in quadrants.items():
+            total_pixels = cv2.countNonZero(mask)
+            if total_pixels == 0:
+                percentage = 0
+            else:
+                dark_pixels = cv2.countNonZero(cv2.bitwise_and((gray < dark_threshold).astype(np.uint8) * 255, mask))
+                percentage = dark_pixels / total_pixels
+            dark_counts[q] = percentage
+
+        chosen_quadrant = max(dark_counts, key=dark_counts.get)
+        
+        if not chosen_quadrant.endswith("-y)"):
+            # chosens_quadrants.append("chosen_quadrant")
+            # if cy > height // 2:
+            chosens_quadrants.append(chosen_quadrant)
+
+        msg = f"{chosens_quadrants}"
+        # cv2.putText(frame, msg, (320,240), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1, cv2.LINE_AA)
+
+        # Definindo mensagem a exibir
+        # if chosen_quadrant.endswith("-y)"):
+        #     false += chosen_quadrant
+        # else:  # +y
+        #     if chosen_quadrant.startswith("(-x"):
+        #         right = chosen_quadrant
+        #     else:
+        #         left = chosen_quadrant            
+
+        cv2.drawContours(frame, [ordered_box], 0, (0, 0, 255), 2)
+        draw_quadrant_lines_and_labels(frame, box)
+        # cx_text = int(np.mean(box[:, 0]))
+        # cy_text = int(np.mean(box[:, 1]))
+        # cv2.putText(frame, msg, (cx_text - 30, cy_text), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (213, 26, 123), 1, cv2.LINE_AA)
+    
+    if len(chosens_quadrants) == 0:
+        msg = "Nenhum quadrante identificado"
+    elif len(chosens_quadrants) == 1:
+        msg = f"Quadrante identificado: {chosens_quadrants[0]}"
+    else:
+        msg = f"Dois quadrantes identificados: {chosens_quadrants[0]} e {chosens_quadrants[1]}"
+
+    print("Mensagem final:", msg)
+    finalResult["classe"] = "quadrante"
+    finalResult["mensagemVerde"] = msg
+
+    cv2.putText(frame,msg, (0,60), cv2.FONT_HERSHEY_SIMPLEX,0.5,(0,255,0), 1, cv2.LINE_AA)
+    fps = 1 / (time.time() - start_time)
+    cv2.putText(frame, f"FPS: {fps:.1f}", (10, 20),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        
+    # Define cores chapadas
+    green_layer = np.full_like(frame, (0, 255, 0))     # Verde
+    black_layer = np.full_like(frame, (0, 0, 0))       # Preto
+    white_layer = np.full_like(frame, (255, 255, 255)) # Branco
+
+    # Máscara para áreas pretas (pelo dark_threshold no gray)
+    black_mask = (gray < dark_threshold).astype(np.uint8) * 255
+
+    # Depois aplica o preto onde a máscara preta é 255 (substitui o branco)
+    result = np.where(black_mask[..., None] == 255, black_layer, white_layer)
+    # result = cv2.bitwise_not(black_mask)
+    
+    # Primeiro aplica o verde onde a máscara verde é 255
+    result = np.where(mask_green[..., None] == 255, green_layer, result)
+
+
+    return result, msg
+    return frame, msg
+
+def seguirLinha():
+    
+
+
+# frame = None
+# while True:
 ret, frame = cap.read()
-frame = cv2.resize(frame, (320, 240))
+    # if not ret or frame is None:
+    #     print("Frame inválido, tentando novamente...")
+    #     time.sleep(0.05)
+    #     continue
+    # break  # Sai do loop quando o frame for válido
+# print(frame)
+# ret, frame = cap.read()
+# frame = cv2.resize(frame, (320, 240))
 # Indica os resultados que viram do processamento de imagem.
-results = model(frame, imgsz=320, conf=0.7, device=device)
+# results = model(frame, imgsz=320, conf=0.7, device=device)
 
 print("Conectando serial")
 # Se estiver em main, incia o stream.
@@ -428,8 +679,16 @@ if __name__ == '__main__' and conectar_serial(porta_serial = '/dev/ttyS5'):
 
     # Tenta processar o frame enquanto running estiver true.
     try:
+        # video_name = encontrar_video_por_porta_usb("510")  # ex: 'video#'
+        # # video_index1 = int(video_name1.replace('video', ''))  # vira #
+        # video_index = (f"/dev/{video_name}") # ex: '/dev/video#'
+        # cap = cv2.VideoCapture(video_index ) # Isso sim funciona
+        
+                # resultado,msg = detectar_quadrantes()
+                # latest_frame = resultado
+                # if resultado
 
-        # while True:
+            # time.sleep(0.5)
         #     ser.write(1)
         #     print(ser.read_all())
         #     time.sleep(1)
@@ -440,10 +699,13 @@ if __name__ == '__main__' and conectar_serial(porta_serial = '/dev/ttyS5'):
             if sistema == "Windows": mensagemRecebida = PROCURAR_VITIMA
             else: mensagemRecebida = aguardarMensagem(True)
 
-            # mensagemRecebida = PROCURAR_VITIMA
+            mensagemRecebida = PROCURAR_VITIMA
 
             print("Mensagem recebida: ",mensagemRecebida)
-            if mensagemRecebida == PROCURAR_VITIMA: 
+            if mensagemRecebida == SEGUIR_LINHA:
+                seguirLinha()
+                
+            elif mensagemRecebida == PROCURAR_VITIMA: 
                 processar_frame(cap, model, sistema) 
                 if   finalResult["classe_id"] is None: mensagemFinal = 'N .'
                 else:

@@ -3,7 +3,8 @@ import cv2
 import time
 import torch
 import platform
-
+import comunicacaoPython as comPython
+from threadVideo import VideoStream
 # Detecta sistema operacional (Windows, Linux, etc)
 sistema = platform.system()
 import serial
@@ -25,7 +26,7 @@ VERMELHO = 0
 VERDE = 1
 
 # Define o número de threads para PyTorch (CPU)
-torch.set_num_threads(4)
+torch.set_num_threads(2)
 device = 'cpu'
 print(f"Usando dispositivo: {device}")
 
@@ -64,7 +65,10 @@ def encontrar_video_por_porta_usb(porta_usb_alvo):
 video_name = encontrar_video_por_porta_usb("520")  # ex: 'video#'
 # video_index1 = int(video_name1.replace('video', ''))  # vira #
 video_index = (f"/dev/{video_name}") # ex: '/dev/video#'
-cap = cv2.VideoCapture(video_index ) # Isso sim funciona
+# cap = cv2.VideoCapture(video_index ) # Isso sim funciona
+streamThread = VideoStream(video_index)  # Inicia
+ret, frame = streamThread.read()  # Sempre retorna o frame mais atual
+
 
 # video_name2 = encontrar_video_por_porta_usb("520")  # ex: 'video3'
 # # video_index2 = int(video_name2.replace('video', ''))  # vira 3
@@ -88,8 +92,6 @@ cap = cv2.VideoCapture(video_index ) # Isso sim funciona
 # Define resolução da captura para 320x240
 width = 160
 height = 120
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
 # --- Criação da pasta de saída para salvar os frames processados ---
 base_dir = "outputs"
@@ -167,40 +169,40 @@ class erro(Exception):
     pass
 
 
-# Conecta com a porta serial para comunicacao
-def conectar_serial(porta_serial,baud_rate=115200):
-    global ser
-    try:
-        # Inicializa a comunicação serial
-        ser = serial.Serial(porta_serial, baud_rate, timeout=1)
-        print(f"Comunicação estabelecida com sucesso na porta {porta_serial}.")
-        return True
+# # Conecta com a porta serial para comunicacao
+# def conectar_serial(porta_serial,baud_rate=115200):
+#     global ser
+#     try:
+#         # Inicializa a comunicação serial
+#         ser = serial.Serial(porta_serial, baud_rate, timeout=1)
+#         print(f"Comunicação estabelecida com sucesso na porta {porta_serial}.")
+#         return True
 
-    except serial.SerialException as e:
-        print(f"Erro ao tentar se comunicar com a porta {porta_serial}: {e}")
-        return False
+#     except serial.SerialException as e:
+#         print(f"Erro ao tentar se comunicar com a porta {porta_serial}: {e}")
+#         return False
     
-# Aguarda mensagem do brick
-def aguardarMensagem(tempo):
-    print("Aguardando Mensagem")
+# # Aguarda mensagem do brick
+# def aguardarMensagem(tempo):
+#     print("Aguardando Mensagem")
 
-    milliseconds_inicial= int(time.time()*1000)
-    while True: 
-        # print("Lendo mensagem")
-        mensagem = ser.read_all()
-        time.sleep(0.001)
-        # print(mensagem)
-        if mensagem is not (b''): return mensagem
-        # return '0'
-        if tempo and (int(time.time()*1000)-milliseconds_inicial)>2500: 
-            print("Muito tempo sem resposta")
-            return '0'
-        # print(int(time.time()*1000)-milliseconds_inicial)
+#     milliseconds_inicial= int(time.time()*1000)
+#     while True: 
+#         # print("Lendo mensagem")
+#         mensagem = ser.read_all()
+#         time.sleep(0.001)
+#         # print(mensagem)
+#         if mensagem is not (b''): return mensagem
+#         # return '0'
+#         if tempo and (int(time.time()*1000)-milliseconds_inicial)>2500: 
+#             print("Muito tempo sem resposta")
+#             return '0'
+#         # print(int(time.time()*1000)-milliseconds_inicial)
 
-# Envia uma mensagem para o brick
-def enviarMensagem(mensagem):
-    ser.write(mensagem.encode())
-    print(f"Mensagem enviada: {mensagem}")
+# # Envia uma mensagem para o brick
+# def enviarMensagem(mensagem):
+#     ser.write(mensagem.encode())
+#     print(f"Mensagem enviada: {mensagem}")
 
 # define quantos graus tem que girar para chegar no centro do objeto
 def quantidadeDeGraus(x):
@@ -260,11 +262,12 @@ def identificar_triangulo_horizontal(cor):
     print("IDENTIFICAR TRIANGULO",cor)
     # quando pegavamos uma unica imagem, por vezes ele nao atualizava (ficava com a imagem anterior)
     # entao fizemos um range de 20 para garantir que houve alteração de imagem
-    i = 0
-    while i < 5:
-        cap.grab()
-        i+=1
-    ret, frame = cap.retrieve()
+    # i = 0
+    # while i < 5:
+    #     cap.grab()
+    #     i+=1
+    # ret, frame = cap.retrieve()
+    ret, frame = streamThread.read()
     if not ret: print("Nao conseugi capturar imagem") 
 
     frame = cv2.resize(frame, (320, 240))
@@ -355,7 +358,7 @@ def start_streaming_server():
 
 
 # Código utilizado para realizar o processamento da imagem, reconhecimento de vítima e a criação da "moldura" em volta da vítima.
-def processar_frame(cap, model, sistema):
+def processar_frame(stream, model, sistema):
     global latest_frame, resultados, temp, output_dir, frame_count,finalResult
     
     # Inicia um cronometro de tempo.
@@ -380,11 +383,12 @@ def processar_frame(cap, model, sistema):
     #         break  # Falha na captura
     # # print(f"Resolução real: {frame.shape[1]}x{frame.shape[0]}")
     
-    i = 0
-    while i < 5:
-        cap.grab()
-        i+=1
-    ret, frame = cap.retrieve()
+    # i = 0
+    # while i < 5:
+    #     cap.grab()
+    #     i+=1
+    # ret, frame = cap.retrieve()
+    ret, frame = streamThread.read()
     if not ret: print("Nao conseugi capturar imagem")
 
     frame = cv2.resize(frame, (320, 240))
@@ -502,38 +506,58 @@ def draw_quadrant_lines_and_labels(frame, box):
 
     return rect
 
-def detectar_quadrantes():
-    print("Detectando quadrantes...")
+def detectarVerde():
+    global stream, finalResult, width, height
+    # print("Detectando quadrantes...")
     start_time = time.time()
 
-    # i = 0
-    # while i < 5:
-    cap.grab()
-    #     i+=1
-    ret, frame = cap.retrieve()
-    frame = cv2.resize(frame, (width, height))
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    # --- Proteção: captura segura do frame ---
+    ret, frame = streamThread.read()
+    if not ret or frame is None:
+        print("[ERRO] Frame inválido em detectarVerde()")
+        return None, "Frame inválido", None
 
-    # lower_green = np.array([45, 40, 55])#h=40 # S=40,v = 55
-    # upper_green = np.array([90, 255,255])# H=80
-    lower_green = np.array([45, 55, 53])#h=40 # S=40,v = 65
-    upper_green = np.array([90, 255,255])# H=80
-    mask_green = cv2.inRange(hsv, lower_green, upper_green)
-    
+    if len(frame.shape) != 3 or frame.shape[2] != 3:
+        print("[ERRO] Frame não tem 3 canais (RGB esperado)")
+        return None, "Frame inválido", None
 
-    contours, _ = cv2.findContours(mask_green, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    try:
+        frame = cv2.resize(frame, (width, height))
+    except Exception as e:
+        print("[ERRO] Falha ao redimensionar frame:", e)
+        return None, "Erro resize", None
+
+    # --- Conversão para HSV com tratamento de erro ---
+    try:
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    except Exception as e:
+        print("[ERRO] Falha ao converter para HSV:", e)
+        return None, "Erro HSV", None
+
+    # --- Máscara do verde ---
+    lower_green = np.array([45, 55, 53])  # Ajustado
+    upper_green = np.array([90, 255, 255])
+    try:
+        mask_green = cv2.inRange(hsv, lower_green, upper_green)
+    except Exception as e:
+        print("[ERRO] Falha ao criar máscara verde:", e)
+        return None, "Erro máscara verde", None
+
+    # --- Busca por contornos seguros ---
+    try:
+        contours, _ = cv2.findContours(mask_green, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    except Exception as e:
+        print("[ERRO] Falha ao encontrar contornos:", e)
+        return None, "Erro contornos", None
 
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    dark_threshold = 70
+    dark_threshold = 90
 
-    left = ""
-    right = ""
-    false = ""
-    msg = ""
     chosens_quadrants = []
+    msg = ""
 
+    # --- Processamento de cada contorno ---
     for contour in contours:
-        # print(cv2.contourArea(contour))
         if cv2.contourArea(contour) < 100:
             continue
 
@@ -551,10 +575,12 @@ def detectar_quadrantes():
         cv2.fillPoly(mask_inner, [ordered_box], 255)
 
         mask_ring = cv2.bitwise_and(mask_expanded, cv2.bitwise_not(mask_inner))
+        if mask_ring is None or mask_ring.shape != frame.shape[:2]:
+            print("[ERRO] Máscara de anel inválida")
+            continue
 
         cx = int(np.mean([p[0] for p in expanded_box]))
         cy = int(np.mean([p[1] for p in expanded_box]))
-        # print(cy)
 
         quadrants = {
             "(-x, +y)": np.zeros_like(mask_ring),
@@ -563,6 +589,7 @@ def detectar_quadrantes():
             "(-x, -y)": np.zeros_like(mask_ring),
         }
 
+        # --- Classificação de quadrantes ---
         for y in range(mask_ring.shape[0]):
             for x in range(mask_ring.shape[1]):
                 if mask_ring[y, x]:
@@ -575,6 +602,7 @@ def detectar_quadrantes():
                     elif x < cx and y >= cy:
                         quadrants["(-x, -y)"][y, x] = 255
 
+        # --- Verificação de pixels escuros ---
         dark_counts = {}
         for q, mask in quadrants.items():
             total_pixels = cv2.countNonZero(mask)
@@ -586,72 +614,64 @@ def detectar_quadrantes():
             dark_counts[q] = percentage
 
         chosen_quadrant = max(dark_counts, key=dark_counts.get)
-        
-        if not chosen_quadrant.endswith("-y)"):
-            # chosens_quadrants.append("chosen_quadrant")
-            # if cy > height // 2:
+        if not chosen_quadrant.endswith("-y)") and cy > height // 2:
             chosens_quadrants.append(chosen_quadrant)
-
-        msg = f"{chosens_quadrants}"
-        # cv2.putText(frame, msg, (320,240), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1, cv2.LINE_AA)
-
-        # Definindo mensagem a exibir
-        # if chosen_quadrant.endswith("-y)"):
-        #     false += chosen_quadrant
-        # else:  # +y
-        #     if chosen_quadrant.startswith("(-x"):
-        #         right = chosen_quadrant
-        #     else:
-        #         left = chosen_quadrant            
 
         cv2.drawContours(frame, [ordered_box], 0, (0, 0, 255), 2)
         draw_quadrant_lines_and_labels(frame, box)
-        # cx_text = int(np.mean(box[:, 0]))
-        # cy_text = int(np.mean(box[:, 1]))
-        # cv2.putText(frame, msg, (cx_text - 30, cy_text), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (213, 26, 123), 1, cv2.LINE_AA)
-    
+
+    # --- Definição de mensagens finais ---
     if len(chosens_quadrants) == 0:
         msg = "Nenhum quadrante identificado"
-    elif len(chosens_quadrants) == 1:
-        msg = f"Quadrante identificado: {chosens_quadrants[0]}"
+        quantidadeVerde = False
     else:
-        msg = f"Dois quadrantes identificados: {chosens_quadrants[0]} e {chosens_quadrants[1]}"
+        if len(chosens_quadrants) == 1:
+            if chosens_quadrants[0].startswith("(+x"):
+                msg = "Verde Direito"
+                direcao = -1
+            else:
+                msg = "Verde Esquerdo"
+                direcao = 1
+            quantidadeVerde = 1 * direcao
+        else:
+            msg = "Dois verdes"
+            quantidadeVerde = 2
 
-    print("Mensagem final:", msg)
+        print("Mensagem final:", msg)
+        
     finalResult["classe"] = "quadrante"
     finalResult["mensagemVerde"] = msg
 
-    cv2.putText(frame,msg, (0,60), cv2.FONT_HERSHEY_SIMPLEX,0.5,(0,255,0), 1, cv2.LINE_AA)
+    # --- Overlay de informações ---
+    cv2.putText(frame, msg, (0, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1, cv2.LINE_AA)
     fps = 1 / (time.time() - start_time)
-    cv2.putText(frame, f"FPS: {fps:.1f}", (10, 20),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-        
-    # Define cores chapadas
-    green_layer = np.full_like(frame, (0, 255, 0))     # Verde
-    black_layer = np.full_like(frame, (0, 0, 0))       # Preto
-    white_layer = np.full_like(frame, (255, 255, 255)) # Branco
+    cv2.putText(frame, f"FPS: {fps:.1f}", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
-    # Máscara para áreas pretas (pelo dark_threshold no gray)
-    black_mask = (gray < dark_threshold).astype(np.uint8) * 255
+    # --- Resultado chapado (verde, preto e branco) ---
+    try:
+        green_layer = np.full_like(frame, (0, 255, 0))     # Verde
+        black_layer = np.full_like(frame, (0, 0, 0))       # Preto
+        white_layer = np.full_like(frame, (255, 255, 255)) # Branco
 
-    # Depois aplica o preto onde a máscara preta é 255 (substitui o branco)
-    result = np.where(black_mask[..., None] == 255, black_layer, white_layer)
-    # result = cv2.bitwise_not(black_mask)
-    
-    # Primeiro aplica o verde onde a máscara verde é 255
-    result = np.where(mask_green[..., None] == 255, green_layer, result)
+        black_mask = (gray < dark_threshold).astype(np.uint8) * 255
+        result = np.where(black_mask[..., None] == 255, black_layer, white_layer)
+        result = np.where(mask_green[..., None] == 255, green_layer, result)
+    except Exception as e:
+        print("[ERRO] Falha ao aplicar cores chapadas:", e)
+        result = frame
+
+    return frame, result, msg, quantidadeVerde
 
 
-    return result, msg
-    return frame, msg
+    return frame, msg, quantidadeVerde
+    return frame, msg, quantidadeVerde
 
-def seguirLinha():
-    
+  
 
 
 # frame = None
 # while True:
-ret, frame = cap.read()
+
     # if not ret or frame is None:
     #     print("Frame inválido, tentando novamente...")
     #     time.sleep(0.05)
@@ -665,100 +685,117 @@ ret, frame = cap.read()
 
 print("Conectando serial")
 # Se estiver em main, incia o stream.
-if __name__ == '__main__' and conectar_serial(porta_serial = '/dev/ttyS5'):
+# serial_com = comPython.ComunicacaoSerialJSON(porta='/dev/ttyS5')
+
+brick = comPython.ComunicacaoSerialJSON(porta='/dev/ttyS5')
+# if __name__ == '__main__' and serial_com.conectar_serial(porta_serial = '/dev/ttyS5'):
 # if __name__ == '__main__':
 
-    # Inicia servidor Flask em thread daemon (roda em background)
-    streaming_thread = Thread(target=start_streaming_server)
-    streaming_thread.daemon = True
-    streaming_thread.start()
-    time.sleep(2)
 
-    # Define running como true, enquanto não pedir para finalizar o código, running continua true.
-    running = True
+# Inicia servidor Flask em thread daemon (roda em background)
+streaming_thread = Thread(target=start_streaming_server)
+streaming_thread.daemon = True
+streaming_thread.start()
+time.sleep(2)
 
-    # Tenta processar o frame enquanto running estiver true.
-    try:
-        # video_name = encontrar_video_por_porta_usb("510")  # ex: 'video#'
-        # # video_index1 = int(video_name1.replace('video', ''))  # vira #
-        # video_index = (f"/dev/{video_name}") # ex: '/dev/video#'
-        # cap = cv2.VideoCapture(video_index ) # Isso sim funciona
-        
-                # resultado,msg = detectar_quadrantes()
-                # latest_frame = resultado
-                # if resultado
+# Define running como true, enquanto não pedir para finalizar o código, running continua true.
+running = True
 
-            # time.sleep(0.5)
-        #     ser.write(1)
-        #     print(ser.read_all())
-        #     time.sleep(1)
-        while running:
-            mensagemFinal = None
-            # time.sleep(1)
+# Tenta processar o frame enquanto running estiver true.
+# try:
+
+modo = None
+
+while modo is None:
+    
+    modo = brick["modo"]
+
+print("modo recebido",modo)
+
+brick["modo"] = modo
+# video_name = encontrar_video_por_porta_usb("510")  # ex: 'video#'
+# # video_index1 = int(video_name1.replace('video', ''))  # vira #
+# video_index = (f"/dev/{video_name}") # ex: '/dev/video#'
+# cap = cv2.VideoCapture(video_index ) # Isso sim funciona
+
+if modo == "linha":
+    while True:
+        frame, result, msg, quantVerde = detectarVerde() 
+
+        latest_frame = frame.copy()
+        if quantVerde:
+            brick["resultado"] = quantVerde
+
+            img_name = f"F{frame_count:04d}.jpg"
+            cv2.imwrite(os.path.join(output_dir, img_name), frame)
+            frame_count += 1
+        # time.sleep(10)  # Aguarda um pouco para evitar sobrecarga de mensagens
+
+    # else:
+    #     while running:
+    #         mensagemFinal = None
+    #         # time.sleep(1)
             
-            if sistema == "Windows": mensagemRecebida = PROCURAR_VITIMA
-            else: mensagemRecebida = aguardarMensagem(True)
+    #         # else: mensagemRecebida = aguardarMensagem(True)
+    #         mensagemRecebida = brick["comando"]
 
-            mensagemRecebida = PROCURAR_VITIMA
+    #         # mensagemRecebida = PROCURAR_VITIMA
 
-            print("Mensagem recebida: ",mensagemRecebida)
-            if mensagemRecebida == SEGUIR_LINHA:
-                seguirLinha()
-                
-            elif mensagemRecebida == PROCURAR_VITIMA: 
-                processar_frame(cap, model, sistema) 
-                if   finalResult["classe_id"] is None: mensagemFinal = 'N .'
-                else:
-                    graus = quantidadeDeGraus(finalResult["centro"][0])
-                    distancia = distanciaVitima(finalResult["diametro"]/2)
-                    classeID = finalResult["classe_id"]
-                    mensagemFinal = str("%s %s %s ."%(graus,distancia, classeID))
+    #         print("Mensagem recebida: ",mensagemRecebida)                
+    #         if mensagemRecebida == PROCURAR_VITIMA: 
+    #             processar_frame(cap, model, sistema) 
+    #             if   finalResult["classe_id"] is None: mensagemFinal = 'N .'
+    #             else:
+    #                 graus = quantidadeDeGraus(finalResult["centro"][0])
+    #                 distancia = distanciaVitima(finalResult["diametro"]/2)
+    #                 classeID = finalResult["classe_id"]
+    #                 mensagemFinal = str("%s %s %s ."%(graus,distancia, classeID))
 
-            # verifica se esta olhando para um triangulo vermelho, se sim, avanca ate tal
-            elif mensagemRecebida==IDENTIFICAR_TRIANGULO_VERMELHO_HORIZONTAL:
-                centro=identificar_triangulo_horizontal(VERMELHO)
-                if centro is None: 
-                    print("SEM CENTRO")
-                    mensagemFinal='N .'
-                else: mensagemFinal=str("%s ."%(quantidadeDeGraus(centro)))
+    #         # verifica se esta olhando para um triangulo vermelho, se sim, avanca ate tal
+    #         elif mensagemRecebida==IDENTIFICAR_TRIANGULO_VERMELHO_HORIZONTAL:
+    #             centro=identificar_triangulo_horizontal(VERMELHO)
+    #             if centro is None: 
+    #                 print("SEM CENTRO")
+    #                 mensagemFinal='N .'
+    #             else: mensagemFinal=str("%s ."%(quantidadeDeGraus(centro)))
 
-            #  verifica se esta olhando para um triangulo vermelho, se sim, avanca ate tal
-            elif mensagemRecebida==IDENTIFICAR_TRIANGULO_VERDE_HORIZONTAL:
-                centro=identificar_triangulo_horizontal(VERDE)
-                if centro is None: 
-                    print("SEM CENTRO")
-                    mensagemFinal='N .'
-                else: mensagemFinal=str("%s ."%(quantidadeDeGraus(centro)))
+    #         #  verifica se esta olhando para um triangulo vermelho, se sim, avanca ate tal
+    #         elif mensagemRecebida==IDENTIFICAR_TRIANGULO_VERDE_HORIZONTAL:
+    #             centro=identificar_triangulo_horizontal(VERDE)
+    #             if centro is None: 
+    #                 print("SEM CENTRO")
+    #                 mensagemFinal='N .'
+    #             else: mensagemFinal=str("%s ."%(quantidadeDeGraus(centro)))
 
-            else: 
-                print("Ordem não compatível com as existentes - Reiniciando mensagem")
-                continue
+    #         else: 
+    #             print("Ordem não compatível com as existentes - Reiniciando mensagem")
+    #             continue
 
-            # print("MENSAGEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEM",mensagemFinal)
-            if mensagemFinal: enviarMensagem(mensagemFinal)
-            # time.sleep(0.5)
-            print("\n\n")
+    #         # print("MENSAGEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEM",mensagemFinal)
+    #         if mensagemFinal: enviarMensagem(mensagemFinal)
+    #         # time.sleep(0.5)
+    #         print("\n\n")
 
-    # Se não conseguir, define que houve um erro durante a execução.
-    except Exception as e:
-        print(f"[ERRO durante a execução]: {e}")
+# Se não conseguir, define que houve um erro durante a execução.
+# except Exception as e:
+#     print(f"[ERRO durante a execução]: {e}")
 
-    # Após realizar tudo, printa que estpa finalizando e "libera" a câmera.
-    finally:
-        print("Finalizando...")
+# Após realizar tudo, printa que estpa finalizando e "libera" a câmera.
+# finally:
+#     print("Finalizando...")
 
-        # Libera câmera
-        cap.release()
+#     # Libera câmera
+#     cap.release()
 
-        # Fecha janela do OpenCV, se estiver no Windows
-        if sistema == "Windows":
-            cv2.destroyAllWindows()
+#     # Fecha janela do OpenCV, se estiver no Windows
+#     if sistema == "Windows":
+#         cv2.destroyAllWindows()
 
-        # Salva arquivo JSON com todos os resultados das detecções para análise futura
-        try:
-            with open(os.path.join(output_dir, "resultados.json"), "w") as f:
-                json.dump(resultados, f, indent=4)
-            print(f"\n✅ Todos os frames e resultados foram salvos em: {output_dir}")
-        except Exception as e:
-            print(f"[ERRO ao salvar JSON]: {e}")
-else: print("NAO CONECTOU NA SERIAL - REINICIANDO CODIGO")
+#     # Salva arquivo JSON com todos os resultados das detecções para análise futura
+#     try:
+#         with open(os.path.join(output_dir, "resultados.json"), "w") as f:
+#             json.dump(resultados, f, indent=4)
+#         print(f"\n✅ Todos os frames e resultados foram salvos em: {output_dir}")
+#     except Exception as e:
+#         print(f"[ERRO ao salvar JSON]: {e}")
+# else: print("NAO CONECTOU NA SERIAL - REINICIANDO CODIGO")

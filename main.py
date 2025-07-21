@@ -4,7 +4,6 @@ import time
 import torch
 import platform
 import comunicacaoPython as comPython
-from threadVideo import VideoStream
 # Detecta sistema operacional (Windows, Linux, etc)
 sistema = platform.system()
 import serial
@@ -14,6 +13,8 @@ import json
 import glob
 import os
 import subprocess
+import math
+from threadVideo import VideoStream
 from flask import Flask, Response, render_template, jsonify
 from threading import Thread
 
@@ -65,9 +66,11 @@ def encontrar_video_por_porta_usb(porta_usb_alvo):
 video_name = encontrar_video_por_porta_usb("520")  # ex: 'video#'
 # video_index1 = int(video_name1.replace('video', ''))  # vira #
 video_index = (f"/dev/{video_name}") # ex: '/dev/video#'
-# cap = cv2.VideoCapture(video_index ) # Isso sim funciona
-streamThread = VideoStream(video_index)  # Inicia
-ret, frame = streamThread.read()  # Sempre retorna o frame mais atual
+cap = VideoStream(video_index) # Isso sim funciona
+# cap = VideoStream(video_index)  # Inicia
+# ret, frame = cap.read()  # Sempre retorna o frame mais atual
+# cam = CameraProcess(video_index, width=320, height=240)
+# cam.start()
 
 
 # video_name2 = encontrar_video_por_porta_usb("520")  # ex: 'video3'
@@ -106,7 +109,7 @@ os.makedirs(output_dir, exist_ok=True)
 # Inicializa variáveis para contar frames e guardar resultados
 frame_count = 1
 resultados = {}
-latest_frame = None  # Frame mais recente para transmissão via streaming
+actual_frame = None  # Frame mais recente para transmissão via streaming
 
 #Inicializa variável para atualizar o resultado da IA em print no terminal e json no html
 temp = {
@@ -137,6 +140,13 @@ def stop():
     running = False
     return jsonify({"message": "Parando o streaming..."})
 
+# Rota para desligar orange via requisição POST
+@app.route('/powerOff', methods=['POST'])
+def powerOff(): # Permite alterar variável global
+    import subprocess
+    subprocess.run(["shutdown"])
+    return jsonify({"message": "Desligando dispositivo..."})
+
 # Rota principal que retorna a página HTML com o stream
 @app.route('/')
 def index():
@@ -146,17 +156,34 @@ def index():
 @app.route('/stream')
 def stream():
     def generate():
-        global latest_frame
+        global actual_frame
+        latest_frame = None
         while True:
-            if latest_frame is not None:
-                # Codifica frame em JPEG para enviar como stream
-                ret, buffer = cv2.imencode('.jpg', latest_frame)
-                frame_bytes = buffer.tobytes()
-                # Envia o frame no formato multipart/x-mixed-replace
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-            time.sleep(0.04)  # Delay para controlar taxa de atualização do stream
+            if actual_frame is not None:
+                if id(actual_frame) != id(latest_frame):
+                    latest_frame = actual_frame.copy()
+
+                    # Codifica frame em JPEG para enviar como stream
+
+                    ret, buffer = cv2.imencode('.jpg', actual_frame)
+                    frame_bytes = buffer.tobytes()
+                    # Envia o frame no formato multipart/x-mixed-replace
+                    yield (b'--frame\r\n'
+                        b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+                # print("Frame repetido")
+            time.sleep(0.06)  # Delay para controlar taxa de atualização do stream
     return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+@app.route('/latest_frame')
+def latest_frame_route():
+    global actual_frame
+    if actual_frame is not None:
+        # Codifica o frame atual em JPEG
+        ret, buffer = cv2.imencode('.jpg', actual_frame)
+        if ret:
+            return Response(buffer.tobytes(), mimetype='image/jpeg')
+    # Se não houver frame disponível, retorna um 204 (No Content)
+    return ('', 204)
 
 @app.route('/temp_data')
 def get_temp_data():
@@ -257,7 +284,7 @@ def aplicar_mascara_hsv(img,cor):
     return mask
 
 def identificar_triangulo_horizontal(cor):
-    global cap, frame_count, latest_frame
+    global cap, frame_count, actual_frame
 
     print("IDENTIFICAR TRIANGULO",cor)
     # quando pegavamos uma unica imagem, por vezes ele nao atualizava (ficava com a imagem anterior)
@@ -267,7 +294,7 @@ def identificar_triangulo_horizontal(cor):
     #     cap.grab()
     #     i+=1
     # ret, frame = cap.retrieve()
-    ret, frame = streamThread.read()
+    ret, frame = cap.read()
     if not ret: print("Nao conseugi capturar imagem") 
 
     frame = cv2.resize(frame, (320, 240))
@@ -287,7 +314,7 @@ def identificar_triangulo_horizontal(cor):
     img_name = f"M{frame_count:04d}.jpg"
     mask=aplicar_mascara_hsv(frame,cor)
     cv2.imwrite(os.path.join(output_dir, img_name), mask)
-    latest_frame = mask
+    actual_frame = mask
     frame_count += 1
     # time.sleep(0.5)
 
@@ -359,7 +386,7 @@ def start_streaming_server():
 
 # Código utilizado para realizar o processamento da imagem, reconhecimento de vítima e a criação da "moldura" em volta da vítima.
 def processar_frame(stream, model, sistema):
-    global latest_frame, resultados, temp, output_dir, frame_count,finalResult
+    global actual_frame, resultados, temp, output_dir, frame_count,finalResult
     
     # Inicia um cronometro de tempo.
     start_time = time.time()
@@ -388,7 +415,7 @@ def processar_frame(stream, model, sistema):
     #     cap.grab()
     #     i+=1
     # ret, frame = cap.retrieve()
-    ret, frame = streamThread.read()
+    ret, frame = cap.read()
     if not ret: print("Nao conseugi capturar imagem")
 
     frame = cv2.resize(frame, (320, 240))
@@ -456,7 +483,7 @@ def processar_frame(stream, model, sistema):
     # resized_frame = cv2.resize(marked_frame, (160, 120))
     cv2.imwrite(os.path.join(output_dir, img_name), marked_frame)
     # Define a última como a última imagem não redimensionada.
-    latest_frame = marked_frame.copy()
+    actual_frame = marked_frame.copy()
 
     # Printa que a imagem foi salva, e mostra o nome da imagem já formatado na forma correta.
     print(f"Frame salvo: {img_name}\n")
@@ -507,56 +534,31 @@ def draw_quadrant_lines_and_labels(frame, box):
     return rect
 
 def detectarVerde():
-    global stream, finalResult, width, height
-    # print("Detectando quadrantes...")
-    start_time = time.time()
+    global finalResult, width, height
 
-    # --- Proteção: captura segura do frame ---
-    ret, frame = streamThread.read()
-    if not ret or frame is None:
-        print("[ERRO] Frame inválido em detectarVerde()")
-        return None, "Frame inválido", None
-
-    if len(frame.shape) != 3 or frame.shape[2] != 3:
-        print("[ERRO] Frame não tem 3 canais (RGB esperado)")
-        return None, "Frame inválido", None
+    ret, frame = cap.read()
+    if not ret:
+        print("[ERRO] Falha ao capturar frame")
+        return None, "Erro captura", None
 
     try:
         frame = cv2.resize(frame, (width, height))
-    except Exception as e:
-        print("[ERRO] Falha ao redimensionar frame:", e)
-        return None, "Erro resize", None
-
-    # --- Conversão para HSV com tratamento de erro ---
-    try:
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     except Exception as e:
-        print("[ERRO] Falha ao converter para HSV:", e)
-        return None, "Erro HSV", None
+        print("[ERRO] Preprocessamento falhou:", e)
+        return None, "Erro preprocessamento", None
 
     # --- Máscara do verde ---
     lower_green = np.array([45, 55, 53])  # Ajustado
     upper_green = np.array([90, 255, 255])
-    try:
-        mask_green = cv2.inRange(hsv, lower_green, upper_green)
-    except Exception as e:
-        print("[ERRO] Falha ao criar máscara verde:", e)
-        return None, "Erro máscara verde", None
+    mask_green = cv2.inRange(hsv, lower_green, upper_green)
 
-    # --- Busca por contornos seguros ---
-    try:
-        contours, _ = cv2.findContours(mask_green, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    except Exception as e:
-        print("[ERRO] Falha ao encontrar contornos:", e)
-        return None, "Erro contornos", None
-
+    # --- Contornos do verde ---
+    contours, _ = cv2.findContours(mask_green, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     dark_threshold = 90
 
     chosens_quadrants = []
-    msg = ""
-
-    # --- Processamento de cada contorno ---
     for contour in contours:
         if cv2.contourArea(contour) < 100:
             continue
@@ -574,97 +576,91 @@ def detectarVerde():
         mask_inner = np.zeros(frame.shape[:2], dtype=np.uint8)
         cv2.fillPoly(mask_inner, [ordered_box], 255)
 
+        # Máscara de anel
         mask_ring = cv2.bitwise_and(mask_expanded, cv2.bitwise_not(mask_inner))
         if mask_ring is None or mask_ring.shape != frame.shape[:2]:
             print("[ERRO] Máscara de anel inválida")
             continue
 
+        # --- Vetorização: separar quadrantes ---
+        Y, X = np.ogrid[:frame.shape[0], :frame.shape[1]]
         cx = int(np.mean([p[0] for p in expanded_box]))
         cy = int(np.mean([p[1] for p in expanded_box]))
 
+
+        mask_q1 = (X < cx) & (Y < cy) & (mask_ring > 0)
+        mask_q2 = (X >= cx) & (Y < cy) & (mask_ring > 0)
+        mask_q3 = (X >= cx) & (Y >= cy) & (mask_ring > 0)
+        mask_q4 = (X < cx) & (Y >= cy) & (mask_ring > 0)
+
         quadrants = {
-            "(-x, +y)": np.zeros_like(mask_ring),
-            "(+x, +y)": np.zeros_like(mask_ring),
-            "(+x, -y)": np.zeros_like(mask_ring),
-            "(-x, -y)": np.zeros_like(mask_ring),
+            "(-x, +y)": mask_q1,
+            "(+x, +y)": mask_q2,
+            "(+x, -y)": mask_q3,
+            "(-x, -y)": mask_q4,
         }
 
-        # --- Classificação de quadrantes ---
-        for y in range(mask_ring.shape[0]):
-            for x in range(mask_ring.shape[1]):
-                if mask_ring[y, x]:
-                    if x < cx and y < cy:
-                        quadrants["(-x, +y)"][y, x] = 255
-                    elif x >= cx and y < cy:
-                        quadrants["(+x, +y)"][y, x] = 255
-                    elif x >= cx and y >= cy:
-                        quadrants["(+x, -y)"][y, x] = 255
-                    elif x < cx and y >= cy:
-                        quadrants["(-x, -y)"][y, x] = 255
-
-        # --- Verificação de pixels escuros ---
-        dark_counts = {}
-        for q, mask in quadrants.items():
-            total_pixels = cv2.countNonZero(mask)
-            if total_pixels == 0:
-                percentage = 0
-            else:
-                dark_pixels = cv2.countNonZero(cv2.bitwise_and((gray < dark_threshold).astype(np.uint8) * 255, mask))
-                percentage = dark_pixels / total_pixels
-            dark_counts[q] = percentage
+        # --- Vetorização: calcular % de pixels escuros ---
+        dark_mask = gray < dark_threshold
+        dark_counts = {
+            q: np.count_nonzero(dark_mask[m]) / max(1, np.count_nonzero(m))
+            for q, m in quadrants.items()
+        }
 
         chosen_quadrant = max(dark_counts, key=dark_counts.get)
-        if not chosen_quadrant.endswith("-y)") and cy > height // 2:
-            chosens_quadrants.append(chosen_quadrant)
+        if not chosen_quadrant.endswith("-y)") and cy > height // 4:
+            chosens_quadrants.append([chosen_quadrant,cx,cy])
 
+        # Desenhar contornos e linhas
         cv2.drawContours(frame, [ordered_box], 0, (0, 0, 255), 2)
         draw_quadrant_lines_and_labels(frame, box)
 
-    # --- Definição de mensagens finais ---
+
+    # --- Mensagem final ---
     if len(chosens_quadrants) == 0:
         msg = "Nenhum quadrante identificado"
-        quantidadeVerde = False
+        quantidadeVerde = 0
     else:
-        if len(chosens_quadrants) == 1:
-            if chosens_quadrants[0].startswith("(+x"):
-                msg = "Verde Direito"
+        # Encontra a maior coordenada y entre os quadrantes escolhidos, ou seja, a mais baixa na tela
+        maior_y = max(chosens_quadrants, key=lambda c: c[2])
+        print(chosens_quadrants,maior_y)
+        # Filtra a lista, removendo pontos próximos demais do maior_y
+        chosens_greens = []
+
+        for ponto in chosens_quadrants:
+            # Calcula a distância euclidiana até maior_y
+            distancia = maior_y[2] - ponto[2]
+            print(distancia)
+            distanciaMaxima = height//4  # Distância máxima para considerar o ponto
+            if distancia <= distanciaMaxima:
+                chosens_greens.append(ponto)
+
+        if len(chosens_greens) == 1:
+            if chosens_greens[0][0].startswith("(+x"):
+                msg = "Verde Esquerdo"
                 direcao = -1
             else:
-                msg = "Verde Esquerdo"
+                msg = "Verde Direito"
                 direcao = 1
             quantidadeVerde = 1 * direcao
         else:
             msg = "Dois verdes"
             quantidadeVerde = 2
 
-        print("Mensagem final:", msg)
-        
     finalResult["classe"] = "quadrante"
     finalResult["mensagemVerde"] = msg
 
-    # --- Overlay de informações ---
-    cv2.putText(frame, msg, (0, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1, cv2.LINE_AA)
-    fps = 1 / (time.time() - start_time)
-    cv2.putText(frame, f"FPS: {fps:.1f}", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+    # # --- Resultado chapado (verde, preto e branco) ---
+    green_layer = np.full_like(frame, (0, 255, 0))
+    black_layer = np.full_like(frame, (0, 0, 0))
+    white_layer = np.full_like(frame, (255, 255, 255))
 
-    # --- Resultado chapado (verde, preto e branco) ---
-    try:
-        green_layer = np.full_like(frame, (0, 255, 0))     # Verde
-        black_layer = np.full_like(frame, (0, 0, 0))       # Preto
-        white_layer = np.full_like(frame, (255, 255, 255)) # Branco
+    black_mask = (gray < dark_threshold).astype(np.uint8) * 255
+    result = np.where(black_mask[..., None] == 255, black_layer, white_layer)
+    result = np.where(mask_green[..., None] == 255, green_layer, result)
 
-        black_mask = (gray < dark_threshold).astype(np.uint8) * 255
-        result = np.where(black_mask[..., None] == 255, black_layer, white_layer)
-        result = np.where(mask_green[..., None] == 255, green_layer, result)
-    except Exception as e:
-        print("[ERRO] Falha ao aplicar cores chapadas:", e)
-        result = frame
-
+    return frame, msg, quantidadeVerde
     return frame, result, msg, quantidadeVerde
-
-
-    return frame, msg, quantidadeVerde
-    return frame, msg, quantidadeVerde
 
   
 
@@ -712,23 +708,35 @@ while modo is None:
 
 print("modo recebido",modo)
 
+
 brick["modo"] = modo
 # video_name = encontrar_video_por_porta_usb("510")  # ex: 'video#'
 # # video_index1 = int(video_name1.replace('video', ''))  # vira #
 # video_index = (f"/dev/{video_name}") # ex: '/dev/video#'
 # cap = cv2.VideoCapture(video_index ) # Isso sim funciona
+# modo = "linha"
 
 if modo == "linha":
     while True:
-        frame, result, msg, quantVerde = detectarVerde() 
+        # frame, result, msg, quantVerde = detectarVerde() 
+        frame, msg, quantVerde = detectarVerde() 
 
-        latest_frame = frame.copy()
+        # --- Overlay de informações ---
+
         if quantVerde:
             brick["resultado"] = quantVerde
 
-            img_name = f"F{frame_count:04d}.jpg"
-            cv2.imwrite(os.path.join(output_dir, img_name), frame)
-            frame_count += 1
+            cv2.putText(frame, msg, (0, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1, cv2.LINE_AA)
+            cv2.putText(frame, f"FPS: {cap.__getattribute__('fps'):.1f}", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+            # print("Resultado Final: ", msg)
+
+            actual_frame = frame.copy()
+            # img_name = f"F{frame_count:04d}.jpg"
+            # cv2.imwrite(os.path.join(output_dir, img_name), frame)
+            # frame_count += 1
+            # time.sleep(1)
+        
+    
         # time.sleep(10)  # Aguarda um pouco para evitar sobrecarga de mensagens
 
     # else:

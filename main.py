@@ -698,112 +698,76 @@ time.sleep(2)
 running = True
 
 # Tenta processar o frame enquanto running estiver true.
-# try:
+try:
 
-modo = None
-
-while modo is None:
-    
-    modo = brick["modo"]
-
-print("modo recebido",modo)
-
-
-brick["modo"] = modo
 # video_name = encontrar_video_por_porta_usb("510")  # ex: 'video#'
 # # video_index1 = int(video_name1.replace('video', ''))  # vira #
 # video_index = (f"/dev/{video_name}") # ex: '/dev/video#'
 # cap = cv2.VideoCapture(video_index ) # Isso sim funciona
-# modo = "linha"
-
-if modo == "linha":
-    while True:
-        # frame, result, msg, quantVerde = detectarVerde() 
-        frame, msg, quantVerde = detectarVerde() 
-
-        # --- Overlay de informações ---
-
-        if quantVerde:
-            brick["resultado"] = quantVerde
-
-            cv2.putText(frame, msg, (0, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1, cv2.LINE_AA)
-            cv2.putText(frame, f"FPS: {cap.__getattribute__('fps'):.1f}", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-            # print("Resultado Final: ", msg)
-
-            actual_frame = frame.copy()
-            # img_name = f"F{frame_count:04d}.jpg"
-            # cv2.imwrite(os.path.join(output_dir, img_name), frame)
-            # frame_count += 1
-            # time.sleep(1)
+    while running:
+        mensagemFinal = None
+        # time.sleep(1)
         
-    
-        # time.sleep(10)  # Aguarda um pouco para evitar sobrecarga de mensagens
+        # else: mensagemRecebida = aguardarMensagem(True)
+        mensagemRecebida = brick["comando"]
 
-    # else:
-    #     while running:
-    #         mensagemFinal = None
-    #         # time.sleep(1)
-            
-    #         # else: mensagemRecebida = aguardarMensagem(True)
-    #         mensagemRecebida = brick["comando"]
+        # mensagemRecebida = PROCURAR_VITIMA
 
-    #         # mensagemRecebida = PROCURAR_VITIMA
+        print("Mensagem recebida: ",mensagemRecebida)                
+        if mensagemRecebida == PROCURAR_VITIMA: 
+            processar_frame(cap, model, sistema) 
+            if   finalResult["classe_id"] is None: mensagemFinal = 'N .'
+            else:
+                graus = quantidadeDeGraus(finalResult["centro"][0])
+                distancia = distanciaVitima(finalResult["diametro"]/2)
+                classeID = finalResult["classe_id"]
+                mensagemFinal = str("%s %s %s ."%(graus,distancia, classeID))
 
-    #         print("Mensagem recebida: ",mensagemRecebida)                
-    #         if mensagemRecebida == PROCURAR_VITIMA: 
-    #             processar_frame(cap, model, sistema) 
-    #             if   finalResult["classe_id"] is None: mensagemFinal = 'N .'
-    #             else:
-    #                 graus = quantidadeDeGraus(finalResult["centro"][0])
-    #                 distancia = distanciaVitima(finalResult["diametro"]/2)
-    #                 classeID = finalResult["classe_id"]
-    #                 mensagemFinal = str("%s %s %s ."%(graus,distancia, classeID))
+        # verifica se esta olhando para um triangulo vermelho, se sim, avanca ate tal
+        elif mensagemRecebida==IDENTIFICAR_TRIANGULO_VERMELHO_HORIZONTAL:
+            centro=identificar_triangulo_horizontal(VERMELHO)
+            if centro is None: 
+                print("SEM CENTRO")
+                mensagemFinal='N .'
+            else: mensagemFinal=str("%s ."%(quantidadeDeGraus(centro)))
 
-    #         # verifica se esta olhando para um triangulo vermelho, se sim, avanca ate tal
-    #         elif mensagemRecebida==IDENTIFICAR_TRIANGULO_VERMELHO_HORIZONTAL:
-    #             centro=identificar_triangulo_horizontal(VERMELHO)
-    #             if centro is None: 
-    #                 print("SEM CENTRO")
-    #                 mensagemFinal='N .'
-    #             else: mensagemFinal=str("%s ."%(quantidadeDeGraus(centro)))
+        #  verifica se esta olhando para um triangulo vermelho, se sim, avanca ate tal
+        elif mensagemRecebida==IDENTIFICAR_TRIANGULO_VERDE_HORIZONTAL:
+            centro=identificar_triangulo_horizontal(VERDE)
+            if centro is None: 
+                print("SEM CENTRO")
+                mensagemFinal='N .'
+            else: mensagemFinal=str("%s ."%(quantidadeDeGraus(centro)))
 
-    #         #  verifica se esta olhando para um triangulo vermelho, se sim, avanca ate tal
-    #         elif mensagemRecebida==IDENTIFICAR_TRIANGULO_VERDE_HORIZONTAL:
-    #             centro=identificar_triangulo_horizontal(VERDE)
-    #             if centro is None: 
-    #                 print("SEM CENTRO")
-    #                 mensagemFinal='N .'
-    #             else: mensagemFinal=str("%s ."%(quantidadeDeGraus(centro)))
+        else: 
+            print("Ordem não compatível com as existentes - Reiniciando mensagem")
+            continue
 
-    #         else: 
-    #             print("Ordem não compatível com as existentes - Reiniciando mensagem")
-    #             continue
-
-    #         # print("MENSAGEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEM",mensagemFinal)
-    #         if mensagemFinal: enviarMensagem(mensagemFinal)
-    #         # time.sleep(0.5)
-    #         print("\n\n")
+        # print("MENSAGEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEM",mensagemFinal)
+        if mensagemFinal: enviarMensagem(mensagemFinal)
+        # time.sleep(0.5)
+        print("\n\n")
 
 # Se não conseguir, define que houve um erro durante a execução.
-# except Exception as e:
-#     print(f"[ERRO durante a execução]: {e}")
+except Exception as e:
+    print(f"[ERRO durante a execução]: {e}")
 
-# Após realizar tudo, printa que estpa finalizando e "libera" a câmera.
-# finally:
-#     print("Finalizando...")
+# Após realizar tudo, printa que está finalizando e "libera" a câmera.
+finally:
+    print("Finalizando...")
 
-#     # Libera câmera
-#     cap.release()
+    # Libera câmera
+    cap.release()
 
-#     # Fecha janela do OpenCV, se estiver no Windows
-#     if sistema == "Windows":
-#         cv2.destroyAllWindows()
+    # Fecha janela do OpenCV, se estiver no Windows
+    if sistema == "Windows":
+        cv2.destroyAllWindows()
 
-#     # Salva arquivo JSON com todos os resultados das detecções para análise futura
-#     try:
-#         with open(os.path.join(output_dir, "resultados.json"), "w") as f:
-#             json.dump(resultados, f, indent=4)
-#         print(f"\n✅ Todos os frames e resultados foram salvos em: {output_dir}")
-#     except Exception as e:
-#         print(f"[ERRO ao salvar JSON]: {e}")
-# else: print("NAO CONECTOU NA SERIAL - REINICIANDO CODIGO")
+    # Salva arquivo JSON com todos os resultados das detecções para análise futura
+    try:
+        with open(os.path.join(output_dir, "resultados.json"), "w") as f:
+            json.dump(resultados, f, indent=4)
+        print(f"\n✅ Todos os frames e resultados foram salvos em: {output_dir}")
+    except Exception as e:
+        print(f"[ERRO ao salvar JSON]: {e}")
+else: print("NAO CONECTOU NA SERIAL - REINICIANDO CODIGO")

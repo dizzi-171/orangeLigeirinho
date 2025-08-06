@@ -3,7 +3,7 @@ import cv2
 import time
 import torch
 import platform
-import comunicacaoPython as comPython
+# import comunicacaoPython as comPython
 # Detecta sistema operacional (Windows, Linux, etc)
 sistema = platform.system()
 import serial
@@ -64,33 +64,9 @@ def encontrar_video_por_porta_usb(porta_usb_alvo):
 # video_index = (f"/dev/{video_name}") # ex: '/dev/video#'
 # cap = cv2.VideoCapture(video_index ) # Isso sim funciona
 video_name = encontrar_video_por_porta_usb("520")  # ex: 'video#'
-# video_index1 = int(video_name1.replace('video', ''))  # vira #
 video_index = (f"/dev/{video_name}") # ex: '/dev/video#'
 cap = VideoStream(video_index) # Isso sim funciona
-# cap = VideoStream(video_index)  # Inicia
-# ret, frame = cap.read()  # Sempre retorna o frame mais atual
-# cam = CameraProcess(video_index, width=320, height=240)
-# cam.start()
-
-
-# video_name2 = encontrar_video_por_porta_usb("520")  # ex: 'video3'
-# # video_index2 = int(video_name2.replace('video', ''))  # vira 3
-# video_index2 = (f"/dev/{video_name2}")  # ex: '/dev/video#'
-# print(video_index2)
-# cap2 = cv2.VideoCapture(video_index2)  # Isso sim funciona
-
-# if video_index2.isOpened() == False: 
-#     print("Erro ao abrir a segunda câmera. Verifique se o caminho está correto ou se a câmera está conectada.")
-
-
-
-# Inicializa a captura da webcam (device 0 windows device 1 orange)
-# if sistema == "Windows": cap = cv2.VideoCapture(0)
-# else: 
-#     cap = cv2.VideoCapture(int(camPath1))
-#     # if not cap.isOpened() == None: print("Erro ao abrir a primeira câmera. Verifique se o caminho está correto ou se a câmera está conectada.")
-#     cap2 = cv2.VideoCapture(int(camPath2))
-#     # if not cap2.isOpened(): print("Erro ao abrir a segunda câmera. Verifique se o caminho está correto ou se a câmera está conectada.")
+ret, frame = cap.read()  # Sempre retorna o frame mais atual
 
 # Define resolução da captura para 320x240
 width = 160
@@ -144,7 +120,7 @@ def stop():
 @app.route('/powerOff', methods=['POST'])
 def powerOff(): # Permite alterar variável global
     import subprocess
-    subprocess.run(["shutdown"])
+    subprocess.call(["sudo","shutdown","now"])
     return jsonify({"message": "Desligando dispositivo..."})
 
 # Rota principal que retorna a página HTML com o stream
@@ -152,37 +128,47 @@ def powerOff(): # Permite alterar variável global
 def index():
     return render_template('index.html')
 
-# Rota que gera o stream MJPEG dos frames processados
+latest_frame = None
+actual_frame = None
+
 @app.route('/stream')
 def stream():
     def generate():
         global actual_frame
-        latest_frame = None
+        global latest_frame
+        previous_frame = None
+
         while True:
             if actual_frame is not None:
-                if id(actual_frame) != id(latest_frame):
-                    latest_frame = actual_frame.copy()
 
-                    # Codifica frame em JPEG para enviar como stream
+                if actual_frame is not None:
+                # Se o frame mudou (conteúdo diferente)
+                    if previous_frame is None or not np.array_equal(actual_frame, previous_frame):
+                        # Move o anterior para latest_frame
+                        if previous_frame is not None:
+                            latest_frame = previous_frame.copy()
 
-                    ret, buffer = cv2.imencode('.jpg', actual_frame)
+                        # Atualiza a referência do frame anterior
+                        previous_frame = actual_frame.copy()
+
+                # Envia frame atual para o streaming
+                ret, buffer = cv2.imencode('.jpg', actual_frame)
+                if ret:
                     frame_bytes = buffer.tobytes()
-                    # Envia o frame no formato multipart/x-mixed-replace
                     yield (b'--frame\r\n'
-                        b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-                # print("Frame repetido")
-            time.sleep(0.06)  # Delay para controlar taxa de atualização do stream
+                           b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+            # time.sleep(0.06)  # ~16 FPS
+
     return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
 
 @app.route('/latest_frame')
 def latest_frame_route():
-    global actual_frame
-    if actual_frame is not None:
-        # Codifica o frame atual em JPEG
-        ret, buffer = cv2.imencode('.jpg', actual_frame)
+    global latest_frame
+    if latest_frame is not None:
+        ret, buffer = cv2.imencode('.jpg', latest_frame)
         if ret:
             return Response(buffer.tobytes(), mimetype='image/jpeg')
-    # Se não houver frame disponível, retorna um 204 (No Content)
     return ('', 204)
 
 @app.route('/temp_data')
@@ -196,40 +182,40 @@ class erro(Exception):
     pass
 
 
-# # Conecta com a porta serial para comunicacao
-# def conectar_serial(porta_serial,baud_rate=115200):
-#     global ser
-#     try:
-#         # Inicializa a comunicação serial
-#         ser = serial.Serial(porta_serial, baud_rate, timeout=1)
-#         print(f"Comunicação estabelecida com sucesso na porta {porta_serial}.")
-#         return True
+# Conecta com a porta serial para comunicacao
+def conectar_serial(porta_serial,baud_rate=115200):
+    global ser
+    try:
+        # Inicializa a comunicação serial
+        ser = serial.Serial(porta_serial, baud_rate, timeout=1)
+        print(f"Comunicação estabelecida com sucesso na porta {porta_serial}.")
+        return True
 
-#     except serial.SerialException as e:
-#         print(f"Erro ao tentar se comunicar com a porta {porta_serial}: {e}")
-#         return False
+    except serial.SerialException as e:
+        print(f"Erro ao tentar se comunicar com a porta {porta_serial}: {e}")
+        return False
     
-# # Aguarda mensagem do brick
-# def aguardarMensagem(tempo):
-#     print("Aguardando Mensagem")
+# Aguarda mensagem do brick
+def aguardarMensagem(tempo):
+    print("Aguardando Mensagem")
 
-#     milliseconds_inicial= int(time.time()*1000)
-#     while True: 
-#         # print("Lendo mensagem")
-#         mensagem = ser.read_all()
-#         time.sleep(0.001)
-#         # print(mensagem)
-#         if mensagem is not (b''): return mensagem
-#         # return '0'
-#         if tempo and (int(time.time()*1000)-milliseconds_inicial)>2500: 
-#             print("Muito tempo sem resposta")
-#             return '0'
-#         # print(int(time.time()*1000)-milliseconds_inicial)
+    milliseconds_inicial= int(time.time()*1000)
+    while True: 
+        # print("Lendo mensagem")
+        mensagem = ser.read_all()
+        time.sleep(0.001)
+        # print(mensagem)
+        if mensagem is not (b''): return mensagem
+        # return '0'
+        if tempo and (int(time.time()*1000)-milliseconds_inicial)>2500: 
+            print("Muito tempo sem resposta")
+            return '0'
+        # print(int(time.time()*1000)-milliseconds_inicial)
 
-# # Envia uma mensagem para o brick
-# def enviarMensagem(mensagem):
-#     ser.write(mensagem.encode())
-#     print(f"Mensagem enviada: {mensagem}")
+# Envia uma mensagem para o brick
+def enviarMensagem(mensagem):
+    ser.write(mensagem.encode())
+    print(f"Mensagem enviada: {mensagem}")
 
 # define quantos graus tem que girar para chegar no centro do objeto
 def quantidadeDeGraus(x):
@@ -275,8 +261,8 @@ def aplicar_mascara_hsv(img,cor):
 
 
     else: #verde
-        lower_green = np.array([45, 35, 30])
-        upper_green = np.array([75, 255, 255])
+        lower_green = np.array([40, 30, 25])
+        upper_green = np.array([80, 255, 255])
 
         # criando mascara
         mask = cv2.inRange(hsv, lower_green, upper_green)
@@ -314,7 +300,6 @@ def identificar_triangulo_horizontal(cor):
     img_name = f"M{frame_count:04d}.jpg"
     mask=aplicar_mascara_hsv(frame,cor)
     cv2.imwrite(os.path.join(output_dir, img_name), mask)
-    actual_frame = mask
     frame_count += 1
     # time.sleep(0.5)
 
@@ -373,6 +358,11 @@ def identificar_triangulo_horizontal(cor):
     print("Pixel Incial",pixelInicial)
     print("Pixel Final",pixelFinal)
     print("Pixel Central",pixelCentral)
+
+    white_layer = np.full_like(frame, (255, 255, 255))
+
+    result = np.where(mask[..., None] == 255, white_layer, frame)
+    actual_frame = frame
     return(pixelCentral)
 
 # Função para iniciar servidor Flask em thread separada
@@ -491,283 +481,277 @@ def processar_frame(stream, model, sistema):
     # Adiciona mais um ao frame counta para continuar printando e adicionando imagens com nomes sequenciais.
     frame_count += 1
 
-def expand_box(box, scale=1.6):
-    center = np.mean(box, axis=0)
-    expanded = (box - center) * scale + center
-    return np.intp(expanded)
+# def expand_box(box, scale=1.6):
+#     center = np.mean(box, axis=0)
+#     expanded = (box - center) * scale + center
+#     return np.intp(expanded)
 
-def order_box_points(pts):
-    rect = np.zeros((4, 2), dtype="float32")
-    s = pts.sum(axis=1)
-    rect[0] = pts[np.argmin(s)]  # top-left
-    rect[2] = pts[np.argmax(s)]  # bottom-right
-    diff = np.diff(pts, axis=1)
-    rect[1] = pts[np.argmin(diff)]  # top-right
-    rect[3] = pts[np.argmax(diff)]  # bottom-left
-    return rect.astype(int)
+# def order_box_points(pts):
+#     rect = np.zeros((4, 2), dtype="float32")
+#     s = pts.sum(axis=1)
+#     rect[0] = pts[np.argmin(s)]  # top-left
+#     rect[2] = pts[np.argmax(s)]  # bottom-right
+#     diff = np.diff(pts, axis=1)
+#     rect[1] = pts[np.argmin(diff)]  # top-right
+#     rect[3] = pts[np.argmax(diff)]  # bottom-left
+#     return rect.astype(int)
 
-def draw_quadrant_lines_and_labels(frame, box):
-    expanded_box = expand_box(box, scale=1.6)
-    rect = order_box_points(expanded_box)
+# def draw_quadrant_lines_and_labels(frame, box):
+#     expanded_box = expand_box(box, scale=1.6)
+#     rect = order_box_points(expanded_box)
 
-    top_mid = ((rect[0] + rect[1]) // 2)
-    bottom_mid = ((rect[2] + rect[3]) // 2)
-    left_mid = ((rect[0] + rect[3]) // 2)
-    right_mid = ((rect[1] + rect[2]) // 2)
+#     top_mid = ((rect[0] + rect[1]) // 2)
+#     bottom_mid = ((rect[2] + rect[3]) // 2)
+#     left_mid = ((rect[0] + rect[3]) // 2)
+#     right_mid = ((rect[1] + rect[2]) // 2)
 
-    cv2.line(frame, tuple(left_mid), tuple(right_mid), (255, 255, 255), 1)
-    cv2.line(frame, tuple(top_mid), tuple(bottom_mid), (255, 255, 255), 1)
-    cv2.polylines(frame, [expanded_box], isClosed=True, color=(255, 255, 255), thickness=1)
+#     cv2.line(frame, tuple(left_mid), tuple(right_mid), (255, 255, 255), 1)
+#     cv2.line(frame, tuple(top_mid), tuple(bottom_mid), (255, 255, 255), 1)
+#     cv2.polylines(frame, [expanded_box], isClosed=True, color=(255, 255, 255), thickness=1)
 
-    offset = 10
-    labels = {
-        "(-x, +y)": rect[0] - [offset, offset],
-        "(+x, +y)": rect[1] + [offset, -offset],
-        "(+x, -y)": rect[2] + [offset, offset],
-        "(-x, -y)": rect[3] - [offset, -offset],
-    }
+#     offset = 10
+#     labels = {
+#         "(-x, +y)": rect[0] - [offset, offset],
+#         "(+x, +y)": rect[1] + [offset, -offset],
+#         "(+x, -y)": rect[2] + [offset, offset],
+#         "(-x, -y)": rect[3] - [offset, -offset],
+#     }
 
-    for text, pos in labels.items():
-        x, y = pos.astype(int)
-        # cv2.putText(frame, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 0, 255), 1, cv2.LINE_AA)
+#     for text, pos in labels.items():
+#         x, y = pos.astype(int)
+#         # cv2.putText(frame, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 0, 255), 1, cv2.LINE_AA)
 
-    return rect
+#     return rect
 
-def detectarVerde():
-    global finalResult, width, height
+# def detectarVerde():
+#     global finalResult, width, height
 
-    ret, frame = cap.read()
-    if not ret:
-        print("[ERRO] Falha ao capturar frame")
-        return None, "Erro captura", None
+#     ret, frame = cap.read()
+#     if not ret:
+#         print("[ERRO] Falha ao capturar frame")
+#         return None, "Erro captura", None
 
-    try:
-        frame = cv2.resize(frame, (width, height))
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-    except Exception as e:
-        print("[ERRO] Preprocessamento falhou:", e)
-        return None, "Erro preprocessamento", None
+#     try:
+#         frame = cv2.resize(frame, (width, height))
+#         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+#     except Exception as e:
+#         print("[ERRO] Preprocessamento falhou:", e)
+#         return None, "Erro preprocessamento", None
 
-    # --- Máscara do verde ---
-    lower_green = np.array([45, 55, 53])  # Ajustado
-    upper_green = np.array([90, 255, 255])
-    mask_green = cv2.inRange(hsv, lower_green, upper_green)
+#     # --- Máscara do verde ---
+#     lower_green = np.array([45, 55, 53])  # Ajustado
+#     upper_green = np.array([90, 255, 255])
+#     mask_green = cv2.inRange(hsv, lower_green, upper_green)
 
-    # --- Contornos do verde ---
-    contours, _ = cv2.findContours(mask_green, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    dark_threshold = 90
+#     # --- Contornos do verde ---
+#     contours, _ = cv2.findContours(mask_green, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+#     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+#     dark_threshold = 90
 
-    chosens_quadrants = []
-    for contour in contours:
-        if cv2.contourArea(contour) < 100:
-            continue
+#     chosens_quadrants = []
+#     for contour in contours:
+#         if cv2.contourArea(contour) < 100:
+#             continue
 
-        rect = cv2.minAreaRect(contour)
-        box = cv2.boxPoints(rect)
-        box = np.intp(box)
+#         rect = cv2.minAreaRect(contour)
+#         box = cv2.boxPoints(rect)
+#         box = np.intp(box)
 
-        ordered_box = order_box_points(box)
-        expanded_box = expand_box(ordered_box, scale=1.8)
+#         ordered_box = order_box_points(box)
+#         expanded_box = expand_box(ordered_box, scale=1.8)
 
-        mask_expanded = np.zeros(frame.shape[:2], dtype=np.uint8)
-        cv2.fillPoly(mask_expanded, [expanded_box], 255)
+#         mask_expanded = np.zeros(frame.shape[:2], dtype=np.uint8)
+#         cv2.fillPoly(mask_expanded, [expanded_box], 255)
 
-        mask_inner = np.zeros(frame.shape[:2], dtype=np.uint8)
-        cv2.fillPoly(mask_inner, [ordered_box], 255)
+#         mask_inner = np.zeros(frame.shape[:2], dtype=np.uint8)
+#         cv2.fillPoly(mask_inner, [ordered_box], 255)
 
-        # Máscara de anel
-        mask_ring = cv2.bitwise_and(mask_expanded, cv2.bitwise_not(mask_inner))
-        if mask_ring is None or mask_ring.shape != frame.shape[:2]:
-            print("[ERRO] Máscara de anel inválida")
-            continue
+#         # Máscara de anel
+#         mask_ring = cv2.bitwise_and(mask_expanded, cv2.bitwise_not(mask_inner))
+#         if mask_ring is None or mask_ring.shape != frame.shape[:2]:
+#             print("[ERRO] Máscara de anel inválida")
+#             continue
 
-        # --- Vetorização: separar quadrantes ---
-        Y, X = np.ogrid[:frame.shape[0], :frame.shape[1]]
-        cx = int(np.mean([p[0] for p in expanded_box]))
-        cy = int(np.mean([p[1] for p in expanded_box]))
-
-
-        mask_q1 = (X < cx) & (Y < cy) & (mask_ring > 0)
-        mask_q2 = (X >= cx) & (Y < cy) & (mask_ring > 0)
-        mask_q3 = (X >= cx) & (Y >= cy) & (mask_ring > 0)
-        mask_q4 = (X < cx) & (Y >= cy) & (mask_ring > 0)
-
-        quadrants = {
-            "(-x, +y)": mask_q1,
-            "(+x, +y)": mask_q2,
-            "(+x, -y)": mask_q3,
-            "(-x, -y)": mask_q4,
-        }
-
-        # --- Vetorização: calcular % de pixels escuros ---
-        dark_mask = gray < dark_threshold
-        dark_counts = {
-            q: np.count_nonzero(dark_mask[m]) / max(1, np.count_nonzero(m))
-            for q, m in quadrants.items()
-        }
-
-        chosen_quadrant = max(dark_counts, key=dark_counts.get)
-        if not chosen_quadrant.endswith("-y)") and cy > height // 4:
-            chosens_quadrants.append([chosen_quadrant,cx,cy])
-
-        # Desenhar contornos e linhas
-        cv2.drawContours(frame, [ordered_box], 0, (0, 0, 255), 2)
-        draw_quadrant_lines_and_labels(frame, box)
+#         # --- Vetorização: separar quadrantes ---
+#         Y, X = np.ogrid[:frame.shape[0], :frame.shape[1]]
+#         cx = int(np.mean([p[0] for p in expanded_box]))
+#         cy = int(np.mean([p[1] for p in expanded_box]))
 
 
-    # --- Mensagem final ---
-    if len(chosens_quadrants) == 0:
-        msg = "Nenhum quadrante identificado"
-        quantidadeVerde = 0
-    else:
-        # Encontra a maior coordenada y entre os quadrantes escolhidos, ou seja, a mais baixa na tela
-        maior_y = max(chosens_quadrants, key=lambda c: c[2])
-        print(chosens_quadrants,maior_y)
-        # Filtra a lista, removendo pontos próximos demais do maior_y
-        chosens_greens = []
+#         mask_q1 = (X < cx) & (Y < cy) & (mask_ring > 0)
+#         mask_q2 = (X >= cx) & (Y < cy) & (mask_ring > 0)
+#         mask_q3 = (X >= cx) & (Y >= cy) & (mask_ring > 0)
+#         mask_q4 = (X < cx) & (Y >= cy) & (mask_ring > 0)
 
-        for ponto in chosens_quadrants:
-            # Calcula a distância euclidiana até maior_y
-            distancia = maior_y[2] - ponto[2]
-            print(distancia)
-            distanciaMaxima = height//4  # Distância máxima para considerar o ponto
-            if distancia <= distanciaMaxima:
-                chosens_greens.append(ponto)
+#         quadrants = {
+#             "(-x, +y)": mask_q1,
+#             "(+x, +y)": mask_q2,
+#             "(+x, -y)": mask_q3,
+#             "(-x, -y)": mask_q4,
+#         }
 
-        if len(chosens_greens) == 1:
-            if chosens_greens[0][0].startswith("(+x"):
-                msg = "Verde Esquerdo"
-                direcao = -1
-            else:
-                msg = "Verde Direito"
-                direcao = 1
-            quantidadeVerde = 1 * direcao
-        else:
-            msg = "Dois verdes"
-            quantidadeVerde = 2
+#         # --- Vetorização: calcular % de pixels escuros ---
+#         dark_mask = gray < dark_threshold
+#         dark_counts = {
+#             q: np.count_nonzero(dark_mask[m]) / max(1, np.count_nonzero(m))
+#             for q, m in quadrants.items()
+#         }
 
-    finalResult["classe"] = "quadrante"
-    finalResult["mensagemVerde"] = msg
+#         chosen_quadrant = max(dark_counts, key=dark_counts.get)
+#         if not chosen_quadrant.endswith("-y)") and cy > height // 4:
+#             chosens_quadrants.append([chosen_quadrant,cx,cy])
 
-    # # --- Resultado chapado (verde, preto e branco) ---
-    green_layer = np.full_like(frame, (0, 255, 0))
-    black_layer = np.full_like(frame, (0, 0, 0))
-    white_layer = np.full_like(frame, (255, 255, 255))
+#         # Desenhar contornos e linhas
+#         cv2.drawContours(frame, [ordered_box], 0, (0, 0, 255), 2)
+#         draw_quadrant_lines_and_labels(frame, box)
 
-    black_mask = (gray < dark_threshold).astype(np.uint8) * 255
-    result = np.where(black_mask[..., None] == 255, black_layer, white_layer)
-    result = np.where(mask_green[..., None] == 255, green_layer, result)
 
-    return frame, msg, quantidadeVerde
-    return frame, result, msg, quantidadeVerde
+#     # --- Mensagem final ---
+#     if len(chosens_quadrants) == 0:
+#         msg = "Nenhum quadrante identificado"
+#         quantidadeVerde = 0
+#     else:
+#         # Encontra a maior coordenada y entre os quadrantes escolhidos, ou seja, a mais baixa na tela
+#         maior_y = max(chosens_quadrants, key=lambda c: c[2])
+#         print(chosens_quadrants,maior_y)
+#         # Filtra a lista, removendo pontos próximos demais do maior_y
+#         chosens_greens = []
+
+#         for ponto in chosens_quadrants:
+#             # Calcula a distância euclidiana até maior_y
+#             distancia = maior_y[2] - ponto[2]
+#             print(distancia)
+#             distanciaMaxima = height//4  # Distância máxima para considerar o ponto
+#             if distancia <= distanciaMaxima:
+#                 chosens_greens.append(ponto)
+
+#         if len(chosens_greens) == 1:
+#             if chosens_greens[0][0].startswith("(+x"):
+#                 msg = "Verde Esquerdo"
+#                 direcao = -1
+#             else:
+#                 msg = "Verde Direito"
+#                 direcao = 1
+#             quantidadeVerde = 1 * direcao
+#         else:
+#             msg = "Dois verdes"
+#             quantidadeVerde = 2
+
+#     finalResult["classe"] = "quadrante"
+#     finalResult["mensagemVerde"] = msg
+
+#     # # --- Resultado chapado (verde, preto e branco) ---
+#     green_layer = np.full_like(frame, (0, 255, 0))
+#     black_layer = np.full_like(frame, (0, 0, 0))
+#     white_layer = np.full_like(frame, (255, 255, 255))
+
+#     black_mask = (gray < dark_threshold).astype(np.uint8) * 255
+#     result = np.where(black_mask[..., None] == 255, black_layer, white_layer)
+#     result = np.where(mask_green[..., None] == 255, green_layer, result)
+
+#     return frame, msg, quantidadeVerde
+#     return frame, result, msg, quantidadeVerde
 
   
 
 
-# frame = None
-# while True:
 
-    # if not ret or frame is None:
-    #     print("Frame inválido, tentando novamente...")
-    #     time.sleep(0.05)
-    #     continue
-    # break  # Sai do loop quando o frame for válido
-# print(frame)
-# ret, frame = cap.read()
-# frame = cv2.resize(frame, (320, 240))
+ret, frame = cap.read()
+frame = cv2.resize(frame, (320, 240))
 # Indica os resultados que viram do processamento de imagem.
-# results = model(frame, imgsz=320, conf=0.7, device=device)
+results = model(frame, imgsz=320, conf=0.7, device=device)
 
-print("Conectando serial")
 # Se estiver em main, incia o stream.
 # serial_com = comPython.ComunicacaoSerialJSON(porta='/dev/ttyS5')
 
-brick = comPython.ComunicacaoSerialJSON(porta='/dev/ttyS5')
+# brick = comPython.ComunicacaoSerialJSON(porta='/dev/ttyS5')
 # if __name__ == '__main__' and serial_com.conectar_serial(porta_serial = '/dev/ttyS5'):
+# if serial_com.conectar_serial(porta_serial = '/dev/ttyS5'):
 # if __name__ == '__main__':
+print("Conectando serial")
+if conectar_serial(porta_serial = '/dev/ttyS5'):
 
+    # Inicia servidor Flask em thread daemon (roda em background)
+    streaming_thread = Thread(target=start_streaming_server)
+    streaming_thread.daemon = True
+    streaming_thread.start()
+    time.sleep(2)
 
-# Inicia servidor Flask em thread daemon (roda em background)
-streaming_thread = Thread(target=start_streaming_server)
-streaming_thread.daemon = True
-streaming_thread.start()
-time.sleep(2)
+    # Define running como true, enquanto não pedir para finalizar o código, running continua true.
+    running = True
 
-# Define running como true, enquanto não pedir para finalizar o código, running continua true.
-running = True
-
-# Tenta processar o frame enquanto running estiver true.
-try:
-
-# video_name = encontrar_video_por_porta_usb("510")  # ex: 'video#'
-# # video_index1 = int(video_name1.replace('video', ''))  # vira #
-# video_index = (f"/dev/{video_name}") # ex: '/dev/video#'
-# cap = cv2.VideoCapture(video_index ) # Isso sim funciona
-    while running:
-        mensagemFinal = None
-        # time.sleep(1)
-        
-        # else: mensagemRecebida = aguardarMensagem(True)
-        mensagemRecebida = brick["comando"]
-
-        # mensagemRecebida = PROCURAR_VITIMA
-
-        print("Mensagem recebida: ",mensagemRecebida)                
-        if mensagemRecebida == PROCURAR_VITIMA: 
-            processar_frame(cap, model, sistema) 
-            if   finalResult["classe_id"] is None: mensagemFinal = 'N .'
-            else:
-                graus = quantidadeDeGraus(finalResult["centro"][0])
-                distancia = distanciaVitima(finalResult["diametro"]/2)
-                classeID = finalResult["classe_id"]
-                mensagemFinal = str("%s %s %s ."%(graus,distancia, classeID))
-
-        # verifica se esta olhando para um triangulo vermelho, se sim, avanca ate tal
-        elif mensagemRecebida==IDENTIFICAR_TRIANGULO_VERMELHO_HORIZONTAL:
-            centro=identificar_triangulo_horizontal(VERMELHO)
-            if centro is None: 
-                print("SEM CENTRO")
-                mensagemFinal='N .'
-            else: mensagemFinal=str("%s ."%(quantidadeDeGraus(centro)))
-
-        #  verifica se esta olhando para um triangulo vermelho, se sim, avanca ate tal
-        elif mensagemRecebida==IDENTIFICAR_TRIANGULO_VERDE_HORIZONTAL:
-            centro=identificar_triangulo_horizontal(VERDE)
-            if centro is None: 
-                print("SEM CENTRO")
-                mensagemFinal='N .'
-            else: mensagemFinal=str("%s ."%(quantidadeDeGraus(centro)))
-
-        else: 
-            print("Ordem não compatível com as existentes - Reiniciando mensagem")
-            continue
-
-        # print("MENSAGEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEM",mensagemFinal)
-        if mensagemFinal: enviarMensagem(mensagemFinal)
-        # time.sleep(0.5)
-        print("\n\n")
-
-# Se não conseguir, define que houve um erro durante a execução.
-except Exception as e:
-    print(f"[ERRO durante a execução]: {e}")
-
-# Após realizar tudo, printa que está finalizando e "libera" a câmera.
-finally:
-    print("Finalizando...")
-
-    # Libera câmera
-    cap.release()
-
-    # Fecha janela do OpenCV, se estiver no Windows
-    if sistema == "Windows":
-        cv2.destroyAllWindows()
-
-    # Salva arquivo JSON com todos os resultados das detecções para análise futura
+    # Tenta processar o frame enquanto running estiver true.
     try:
-        with open(os.path.join(output_dir, "resultados.json"), "w") as f:
-            json.dump(resultados, f, indent=4)
-        print(f"\n✅ Todos os frames e resultados foram salvos em: {output_dir}")
+
+        # video_name = encontrar_video_por_porta_usb("510")  # ex: 'video#'
+        # video_index = int(video_name.replace('video', ''))  # vira #
+        # video_index = (f"/dev/{video_name}") # ex: '/dev/video#'
+        # cap = cv2.VideoCapture(video_index ) # Isso sim funciona
+        while running:
+            mensagemFinal = None
+            podeEnviar = True
+            
+            mensagemRecebida = aguardarMensagem(False)
+
+            # mensagemRecebida = PROCURAR_VITIMA
+
+            print("Mensagem recebida: ",mensagemRecebida)                
+            if mensagemRecebida == PROCURAR_VITIMA: 
+                processar_frame(cap, model, sistema) 
+                if   finalResult["classe_id"] is None: mensagemFinal = 'N .'
+                else:
+                    graus = quantidadeDeGraus(finalResult["centro"][0])
+                    distancia = distanciaVitima(finalResult["diametro"]/2)
+                    classeID = finalResult["classe_id"]
+                    mensagemFinal = str("%s %s %s ."%(graus,distancia, classeID))
+
+            # verifica se esta olhando para um triangulo vermelho, se sim, avanca ate tal
+            elif mensagemRecebida==IDENTIFICAR_TRIANGULO_VERMELHO_HORIZONTAL:
+                centro=identificar_triangulo_horizontal(VERMELHO)
+                if centro is None: 
+                    print("SEM CENTRO")
+                    mensagemFinal='N .'
+                else: mensagemFinal=str("%s ."%(quantidadeDeGraus(centro)))
+
+            #  verifica se esta olhando para um triangulo vermelho, se sim, avanca ate tal
+            elif mensagemRecebida==IDENTIFICAR_TRIANGULO_VERDE_HORIZONTAL:
+                centro=identificar_triangulo_horizontal(VERDE)
+                if centro is None: 
+                    print("SEM CENTRO")
+                    mensagemFinal='N .'
+                else: mensagemFinal=str("%s ."%(quantidadeDeGraus(centro)))
+
+            else: 
+                podeEnviar = False
+                print("Ordem não compatível com as existentes - Reiniciando mensagem")
+                continue
+
+            # print("MENSAGEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEM",mensagemFinal)
+            if podeEnviar: 
+                enviarMensagem(mensagemFinal)
+            # time.sleep(0.5)
+            print("\n\n")
+
+    # Se não conseguir, define que houve um erro durante a execução.
     except Exception as e:
-        print(f"[ERRO ao salvar JSON]: {e}")
+        print(f"[ERRO durante a execução]: {e}")
+
+    # Após realizar tudo, printa que está finalizando e "libera" a câmera.
+    finally:
+        print("Finalizando...")
+
+        # Libera câmera
+        # cap.release()
+
+        # Fecha janela do OpenCV, se estiver no Windows
+        if sistema == "Windows":
+            cv2.destroyAllWindows()
+
+        # Salva arquivo JSON com todos os resultados das detecções para análise futura
+        try:
+            with open(os.path.join(output_dir, "resultados.json"), "w") as f:
+                json.dump(resultados, f, indent=4)
+            print(f"\n✅ Todos os frames e resultados foram salvos em: {output_dir}")
+        except Exception as e:
+            print(f"[ERRO ao salvar JSON]: {e}")
 else: print("NAO CONECTOU NA SERIAL - REINICIANDO CODIGO")

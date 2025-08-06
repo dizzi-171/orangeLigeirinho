@@ -138,7 +138,7 @@
         }
 
         // Função de parar o stream
-        function poweroff() {
+        function powerOff() {
             fetch('/powerOff', { method: 'POST' })
                 .then(response => response.json())
                 .then(data => {
